@@ -1,0 +1,95 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"math/rand"
+	"net"
+	"net/mail"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const (
+	UDP_PACKET_SIZE = 1500
+	MSEARCH_HEADER  = "M-SEARCH * HTTP/1.1\r\n"
+	SSDP_ADDR       = "239.255.255.250:1900"
+)
+
+func serveSSDP(httpPort int) {
+	// only IPv4 for now
+	maddr, err := net.ResolveUDPAddr("udp", SSDP_ADDR)
+	if err != nil {
+		panic(err)
+	}
+	conn, err := net.ListenMulticastUDP("udp", nil, maddr)
+
+	// SSDP packets may at most be one UDP packet
+	buf := make([]byte, UDP_PACKET_SIZE)
+
+	for {
+		n, raddr, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			panic(err)
+		}
+
+		packet := buf[:n]
+
+		if !bytes.HasPrefix(packet, []byte(MSEARCH_HEADER)) {
+			continue
+		}
+
+		msg, err := mail.ReadMessage(bytes.NewReader(packet[len(MSEARCH_HEADER):]))
+		if err != nil {
+			// ignore malformed packet
+			continue
+		}
+
+		if !strings.HasPrefix(msg.Header.Get("ST"), "urn:dial-multiscreen-org:service:dial:") {
+			// not the request we're looking for
+			// TODO this is not UPnP compliant: it needs to respond to various other requests as well like ssdp:any.
+			// On the other hand, the DIAL specification seems to imply this is the only required "ST"
+			// that needs to be responded to.
+			continue
+		}
+
+		go serveSSDPResponse(msg, raddr, httpPort)
+	}
+
+	defer conn.Close()
+}
+
+func serveSSDPResponse(msg *mail.Message, raddr *net.UDPAddr, httpPort int) {
+	mx, err := strconv.Atoi(msg.Header.Get("MX"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+
+	time.Sleep(time.Duration(rand.Int31n(1000000)) * time.Duration(mx) * time.Microsecond)
+
+	conn, err := net.DialUDP("udp", nil, raddr)
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	// TODO implement OS header, BOOTID.UPNP.ORG
+	// and make this a real template
+	response := fmt.Sprintf("HTTP/1.1 200 OK\r\n"+
+		"CACHE-CONTROL: max-age=1800\r\n"+
+		"DATE: %s\r\n"+
+		"EXT: \r\n"+
+		"LOCATION: http://%s:%d/upnp/description.xml\r\n"+
+		"SERVER: Linux/2.6.16+ UPnP/1.1 %s/%s\r\n"+
+		"ST: urn:dial-multiscreen-org:service:dial:1\r\n"+
+		"CONFIGID.UPNP.ORG: %d\r\n"+
+		"\r\n", time.Now().Format(time.RFC1123Z), getUrlIP(conn.LocalAddr()), httpPort, NAME, VERSION, CONFIGID)
+
+	_, err = conn.Write([]byte(response))
+	if err != nil {
+		panic(err)
+	}
+}
