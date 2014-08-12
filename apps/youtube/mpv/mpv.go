@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"youtube-receiver/apps/youtube/mp"
+	"github.com/aykevl93/youtube-receiver/apps/youtube/mp"
 )
 
 // MPV is an implementation of mp.MediaPlayer, using libmpv.

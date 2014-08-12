@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"youtube-receiver/apps/youtube/mp"
-	"youtube-receiver/apps/youtube/mpv"
+	"github.com/aykevl93/youtube-receiver/apps/youtube/mp"
+	"github.com/aykevl93/youtube-receiver/apps/youtube/mpv"
 )
 
 type YouTube struct {
