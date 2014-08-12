@@ -20,8 +20,8 @@ These can be installed in one go under Debian Jessie:
 
 If you haven't already set up a Go workspace, create one now. Some people like to set it to their home directory, but you can also set it to a separate directory. In any case, set the environment variable `$GOROOT` to this path:
 
-    $ mkdir gopath
-    $ cd gopath
+    $ mkdir golang
+    $ cd golang
     $ export GOPATH="`pwd`"
 
 Then get the required packages and compile:
