@@ -18,20 +18,21 @@ These can be installed in one go under Debian Jessie:
 
     $ sudo apt-get install golang libmpv-dev youtube-dl
 
-If you haven't already set up a Go workspace, create a `src` directory somewhere and set the environment variable `$GOPATH` to the parent of it:
+If you haven't already set up a Go workspace, create one now. Some people like to set it to their home directory, but you can also set it to a separate directory. In any case, set the environment variable `$GOROOT` to this path:
 
-    $ mkdir ~/src
-    $ export GOPATH=~/src
+    $ mkdir gopath
+    $ cd gopath
+    $ export GOPATH="`pwd`"
 
-Then install the required packages and compile:
+Then get the required packages and compile:
 
     $ go get github.com/nu7hatch/gouuid
     $ go get github.com/aykevl93/youtube-receiver
     $ go install github.com/aykevl93/youtube-receiver
 
-Note: `go install` creates `bin` and `pkg` directories under your `src` directory, inside your home directory.
+To run the server, run the executable `bin/youtube-receiver` relative to your Go workspace. Any Android phone with YouTube app (or possibly iPhone, but I haven't tested) on the same network should recognize the server and it should be possible to play the audio of videos on it. The Chrome extension doesn't yet work.
 
-To run the server, run the executable `~/bin/youtube-receiver` (or `$GOPATH/bin/youtube-receiver` if `src` isn't inside your home directory). Any Android phone with YouTube app (or possibly iPhone, but I haven't tested) on the same network should recognize the server and it should be possible to play the audio of videos on it. The Chrome extension doesn't yet work.
+    $ bin/youtube-receiver
 
 ## Notes on youtube-dl
 
