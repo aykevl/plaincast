@@ -1,3 +1,4 @@
 bin
 pkg
 Session.vim
+.*.swp
