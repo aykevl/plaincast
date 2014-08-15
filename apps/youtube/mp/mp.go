@@ -1,23 +1,10 @@
 package mp
 
+// This library is a wrapper around a media player that plays YouTube playlists.
+
 import (
 	"time"
 )
-
-// media player interface
-
-type MediaPlayer interface {
-	GetPlaystate() *PlayState
-	SetPlaystate(playlist []string, index int, position time.Duration)
-	UpdatePlaylist(playlist []string)
-	SetVideo(videoId string, position time.Duration)
-	Resume()
-	Pause()
-	Seek(position time.Duration)
-	SetVolume(volume int)
-	Stop()
-	Quit()
-}
 
 // these are defined by the YouTube API
 type State int

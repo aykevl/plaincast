@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/aykevl93/youtube-receiver/apps/youtube/mp"
 	"github.com/nu7hatch/gouuid"
 	"io"
 	"io/ioutil"
@@ -13,8 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/aykevl93/youtube-receiver/apps/youtube/mp"
-	"github.com/aykevl93/youtube-receiver/apps/youtube/mpv"
 )
 
 type YouTube struct {
@@ -26,7 +25,7 @@ type YouTube struct {
 	sid              string
 	gsessionid       string
 	aid              int32 // int32 is thread-safe on ARM and Intel processors
-	mp               mp.MediaPlayer
+	mp               *mp.MediaPlayer
 	outgoingMessages chan outgoingMessage
 }
 
@@ -88,7 +87,7 @@ func (yt *YouTube) run(postData string) {
 
 	stateChange := make(chan mp.StateChange)
 	volumeChange := make(chan int)
-	yt.mp = mpv.New(stateChange, volumeChange)
+	yt.mp = mp.New(stateChange, volumeChange)
 	go yt.observeStateChange(stateChange)
 	go yt.observeVolumeChange(volumeChange)
 
