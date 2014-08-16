@@ -211,7 +211,7 @@ func (p *MediaPlayer) Seek(position time.Duration) {
 			fmt.Printf("Warning: state is not paused while seeking (state: %d)\n", ps.State)
 		}
 
-		p.player.seek(position)
+		p.player.setPosition(position)
 		p.updatePosition(ps)
 	})
 }

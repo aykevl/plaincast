@@ -174,10 +174,6 @@ func (mpv *MPV) resume() {
 	mpv.setProperty("pause", "no")
 }
 
-func (mpv *MPV) seek(position time.Duration) {
-	mpv.sendCommand([]string{"seek", fmt.Sprintf("%.3f", position.Seconds()), "absolute"})
-}
-
 func (mpv *MPV) getPosition() time.Duration {
 	position, err := time.ParseDuration(mpv.getProperty("time-pos") + "s")
 	if err != nil {
@@ -185,6 +181,10 @@ func (mpv *MPV) getPosition() time.Duration {
 		panic(err)
 	}
 	return position
+}
+
+func (mpv *MPV) setPosition(position time.Duration) {
+	mpv.sendCommand([]string{"seek", fmt.Sprintf("%.3f", position.Seconds()), "absolute"})
 }
 
 func (mpv *MPV) getVolume() int {

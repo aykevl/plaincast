@@ -10,7 +10,7 @@ type Backend interface {
 	play(string, time.Duration)
 	pause()
 	resume()
-	seek(time.Duration)
+	setPosition(time.Duration)
 	getPosition() time.Duration
 	getVolume() int
 	setVolume(int)
