@@ -25,14 +25,6 @@ type MPV struct {
 	handle *C.mpv_handle
 }
 
-// checkError checks for libmpv errors and panics if it finds one
-func checkError(status C.int) {
-	if status < 0 {
-		// this C string should not be freed (it is static)
-		panic(fmt.Sprintf("mpv API error: %s (%d)", C.GoString(C.mpv_error_string(status)), int(status)))
-	}
-}
-
 // New creates a new MPV instance and initializes the libmpv player
 func (mpv *MPV) initialize() chan playerEvent {
 	if mpv.handle != nil {
@@ -67,7 +59,7 @@ func (mpv *MPV) initialize() chan playerEvent {
 	mpv.setOptionFlag("no-input-terminal", true)
 	mpv.setOptionFlag("quiet", true)
 
-	checkError(C.mpv_initialize(mpv.handle))
+	mpv.checkError(C.mpv_initialize(mpv.handle))
 
 	eventChan := make(chan playerEvent)
 
@@ -110,7 +102,7 @@ func (mpv *MPV) setOption(key string, format C.mpv_format, value unsafe.Pointer)
 	cKey := C.CString(key)
 	defer C.free(unsafe.Pointer(cKey))
 
-	checkError(C.mpv_set_option(mpv.handle, cKey, format, value))
+	mpv.checkError(C.mpv_set_option(mpv.handle, cKey, format, value))
 }
 
 // sendCommand sends a command to the libmpv player
@@ -129,7 +121,7 @@ func (mpv *MPV) sendCommand(command []string) {
 		defer C.free(unsafe.Pointer(cStr))
 	}
 
-	checkError(C.mpv_command_async(mpv.handle, 0, cArray))
+	mpv.checkError(C.mpv_command_async(mpv.handle, 0, cArray))
 }
 
 // getProperty returns the MPV player property as a string
@@ -139,7 +131,7 @@ func (mpv *MPV) getProperty(name string) string {
 	defer C.free(unsafe.Pointer(cName))
 
 	var cValue *C.char
-	checkError(C.mpv_get_property(mpv.handle, cName, C.MPV_FORMAT_STRING, unsafe.Pointer(&cValue)))
+	mpv.checkError(C.mpv_get_property(mpv.handle, cName, C.MPV_FORMAT_STRING, unsafe.Pointer(&cValue)))
 	defer C.mpv_free(unsafe.Pointer(cValue))
 
 	return C.GoString(cValue)
@@ -153,7 +145,7 @@ func (mpv *MPV) setProperty(name, value string) {
 	defer C.free(unsafe.Pointer(cValue))
 
 	// setProperty can take an unbounded time, don't block here using _async
-	checkError(C.mpv_set_property_async(mpv.handle, 0, cName, C.MPV_FORMAT_STRING, unsafe.Pointer(&cValue)))
+	mpv.checkError(C.mpv_set_property_async(mpv.handle, 0, cName, C.MPV_FORMAT_STRING, unsafe.Pointer(&cValue)))
 }
 
 func (mpv *MPV) play(stream string, position time.Duration) {
@@ -219,13 +211,21 @@ loop:
 			mpv.handle = nil
 			break loop
 		case C.MPV_EVENT_PLAYBACK_RESTART:
-			eventChan <- PLAYER_EVENT_RESTART
+			eventChan <- PLAYER_EVENT_PLAYING
 		case C.MPV_EVENT_END_FILE:
 			eventChan <- PLAYER_EVENT_END
 		case C.MPV_EVENT_PAUSE:
 			eventChan <- PLAYER_EVENT_PAUSE
 		case C.MPV_EVENT_UNPAUSE:
-			eventChan <- PLAYER_EVENT_UNPAUSE
+			eventChan <- PLAYER_EVENT_PLAYING
 		}
+	}
+}
+
+// checkError checks for libmpv errors and panics if it finds one
+func (mpv *MPV) checkError(status C.int) {
+	if status < 0 {
+		// this C string should not be freed (it is static)
+		panic(fmt.Sprintf("mpv API error: %s (%d)", C.GoString(C.mpv_error_string(status)), int(status)))
 	}
 }
