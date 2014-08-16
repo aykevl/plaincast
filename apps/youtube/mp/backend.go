@@ -5,7 +5,7 @@ import (
 )
 
 type Backend interface {
-	initialize() chan playerEvent
+	initialize() chan State
 	quit()
 	play(string, time.Duration)
 	pause()
@@ -16,11 +16,3 @@ type Backend interface {
 	setVolume(int)
 	stop()
 }
-
-type playerEvent int
-
-const (
-	PLAYER_EVENT_PLAYING playerEvent = iota // playback has started or resumed from (e.g.) buffering
-	PLAYER_EVENT_PAUSE
-	PLAYER_EVENT_END // playback of current file/stream has ended
-)

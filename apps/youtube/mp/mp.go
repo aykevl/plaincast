@@ -10,10 +10,10 @@ import (
 type State int
 
 const (
-	StateStopped State = iota
-	StatePlaying
-	StatePaused
-	StateBuffering
+	STATE_STOPPED State = iota
+	STATE_PLAYING
+	STATE_PAUSED
+	STATE_BUFFERING
 )
 
 type PlayState struct {

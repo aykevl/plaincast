@@ -26,7 +26,7 @@ type MPV struct {
 }
 
 // New creates a new MPV instance and initializes the libmpv player
-func (mpv *MPV) initialize() chan playerEvent {
+func (mpv *MPV) initialize() chan State {
 	if mpv.handle != nil {
 		panic("already initialized")
 	}
@@ -61,7 +61,7 @@ func (mpv *MPV) initialize() chan playerEvent {
 
 	mpv.checkError(C.mpv_initialize(mpv.handle))
 
-	eventChan := make(chan playerEvent)
+	eventChan := make(chan State)
 
 	go mpv.eventHandler(eventChan)
 
@@ -198,7 +198,7 @@ func (mpv *MPV) stop() {
 }
 
 // playerEventHandler waits for libmpv player events and sends them on a channel
-func (mpv *MPV) eventHandler(eventChan chan playerEvent) {
+func (mpv *MPV) eventHandler(eventChan chan State) {
 loop:
 	for {
 		// wait until there is an event (negative timeout means infinite timeout)
@@ -211,13 +211,13 @@ loop:
 			mpv.handle = nil
 			break loop
 		case C.MPV_EVENT_PLAYBACK_RESTART:
-			eventChan <- PLAYER_EVENT_PLAYING
+			eventChan <- STATE_PLAYING
 		case C.MPV_EVENT_END_FILE:
-			eventChan <- PLAYER_EVENT_END
+			eventChan <- STATE_STOPPED
 		case C.MPV_EVENT_PAUSE:
-			eventChan <- PLAYER_EVENT_PAUSE
+			eventChan <- STATE_PAUSED
 		case C.MPV_EVENT_UNPAUSE:
-			eventChan <- PLAYER_EVENT_PLAYING
+			eventChan <- STATE_PLAYING
 		}
 	}
 }

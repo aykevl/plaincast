@@ -81,7 +81,7 @@ func (p *MediaPlayer) SetPlaystate(playlist []string, index int, position time.D
 }
 
 func (p *MediaPlayer) startPlaying(ps *PlayState) {
-	p.setPlayState(ps, StateBuffering)
+	p.setPlayState(ps, STATE_BUFFERING)
 
 	videoId := ps.Playlist[ps.Index]
 	position := ps.Position
@@ -129,7 +129,7 @@ func (p *MediaPlayer) UpdatePlaylist(playlist []string) {
 
 		if len(ps.Playlist) == 0 {
 
-			if ps.State == StatePlaying {
+			if ps.State == STATE_PLAYING {
 				// just to be sure
 				panic("empty playlist while playing")
 			}
@@ -140,7 +140,7 @@ func (p *MediaPlayer) UpdatePlaylist(playlist []string) {
 				ps.Index = len(playlist) - 1
 			}
 
-			if ps.State == StateStopped {
+			if ps.State == STATE_STOPPED {
 				ps.Position = 0
 				p.startPlaying(ps)
 			}
@@ -185,7 +185,7 @@ func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string) {
 // Pause pauses the currently playing video
 func (p *MediaPlayer) Pause() {
 	go p.changePlaystate(func(ps *PlayState) {
-		if ps.State != StatePlaying {
+		if ps.State != STATE_PLAYING {
 			fmt.Printf("Warning: pause while in state %d\n", ps.State)
 		}
 
@@ -196,7 +196,7 @@ func (p *MediaPlayer) Pause() {
 // Resume resumes playback when it was paused
 func (p *MediaPlayer) Resume() {
 	go p.changePlaystate(func(ps *PlayState) {
-		if ps.State != StatePaused {
+		if ps.State != STATE_PAUSED {
 			fmt.Printf("Warning: resume while in state %d\n", ps.State)
 		}
 
@@ -207,7 +207,7 @@ func (p *MediaPlayer) Resume() {
 // Seek jumps to the specified position
 func (p *MediaPlayer) Seek(position time.Duration) {
 	go p.changePlaystate(func(ps *PlayState) {
-		if ps.State != StatePaused {
+		if ps.State != STATE_PAUSED {
 			fmt.Printf("Warning: state is not paused while seeking (state: %d)\n", ps.State)
 		}
 
@@ -220,7 +220,7 @@ func (p *MediaPlayer) Seek(position time.Duration) {
 func (p *MediaPlayer) updatePosition(ps *PlayState) {
 	// Also give 0 position on buffering because we can't ask the player where
 	// we are while we are fetching the YouTube stream.
-	if ps.State == StateStopped || ps.State == StateBuffering {
+	if ps.State == STATE_STOPPED || ps.State == STATE_BUFFERING {
 		ps.Position = 0
 		return
 	}
@@ -242,12 +242,12 @@ func (p *MediaPlayer) Stop() {
 		// Stop is called before UpdatePlaylist when removing the currently
 		// playing video from the playlist.
 		ps.Position = 0
-		ps.State = StateStopped
+		ps.State = STATE_STOPPED
 		p.player.stop()
 	})
 }
 
-func (p *MediaPlayer) run(playerEventChan chan playerEvent) {
+func (p *MediaPlayer) run(playerEventChan chan State) {
 	ps := PlayState{}
 
 	ps.Volume = -1
@@ -269,8 +269,8 @@ func (p *MediaPlayer) run(playerEventChan chan playerEvent) {
 			}
 
 			switch event {
-			case PLAYER_EVENT_PLAYING:
-				p.setPlayState(&ps, StatePlaying)
+			case STATE_PLAYING:
+				p.setPlayState(&ps, STATE_PLAYING)
 
 				if !volumeInitialized {
 					volumeInitialized = true
@@ -279,10 +279,10 @@ func (p *MediaPlayer) run(playerEventChan chan playerEvent) {
 					p.volumeChange <- ps.Volume
 				}
 
-			case PLAYER_EVENT_PAUSE:
-				p.setPlayState(&ps, StatePaused)
+			case STATE_PAUSED:
+				p.setPlayState(&ps, STATE_PAUSED)
 
-			case PLAYER_EVENT_END:
+			case STATE_STOPPED:
 				if ps.Index+1 < len(ps.Playlist) {
 					// there are more videos, play the next
 					ps.Index++
@@ -292,7 +292,7 @@ func (p *MediaPlayer) run(playerEventChan chan playerEvent) {
 					// signal that the video has stopped playing
 					// this resets the position but keeps the playlist
 					ps.Position = 0
-					p.setPlayState(&ps, StateStopped)
+					p.setPlayState(&ps, STATE_STOPPED)
 				}
 			}
 		}
