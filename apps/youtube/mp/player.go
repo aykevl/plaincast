@@ -268,6 +268,12 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 				return
 			}
 
+			if event == ps.State {
+				// status hasn't changed
+				// especially libvlc may send multiple events, ignore those
+				continue
+			}
+
 			switch event {
 			case STATE_PLAYING:
 				p.setPlayState(&ps, STATE_PLAYING)
@@ -283,6 +289,12 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 				p.setPlayState(&ps, STATE_PAUSED)
 
 			case STATE_STOPPED:
+				if ps.State == STATE_BUFFERING {
+					// Especially VLC may keep sending 'stopped' events
+					// while the next track is already buffering.
+					// Ignore those events.
+					continue
+				}
 				if ps.Index+1 < len(ps.Playlist) {
 					// there are more videos, play the next
 					ps.Index++
