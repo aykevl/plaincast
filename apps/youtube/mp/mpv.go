@@ -207,7 +207,7 @@ loop:
 
 		switch event.event_id {
 		case C.MPV_EVENT_SHUTDOWN:
-			eventChan <- PLAYER_EVENT_QUIT
+			close(eventChan)
 			mpv.handle = nil
 			break loop
 		case C.MPV_EVENT_PLAYBACK_RESTART:

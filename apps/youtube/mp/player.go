@@ -262,7 +262,12 @@ func (p *MediaPlayer) run(playerEventChan chan playerEvent) {
 				ps = <-p.playstateChan
 			}
 
-		case event := <-playerEventChan:
+		case event, ok := <-playerEventChan:
+			if !ok {
+				// player has quit, and closed channel
+				return
+			}
+
 			switch event {
 			case PLAYER_EVENT_PLAYING:
 				p.setPlayState(&ps, StatePlaying)
