@@ -264,7 +264,7 @@ func (p *MediaPlayer) run(playerEventChan chan playerEvent) {
 
 		case event := <-playerEventChan:
 			switch event {
-			case PLAYER_EVENT_RESTART:
+			case PLAYER_EVENT_PLAYING:
 				p.setPlayState(&ps, StatePlaying)
 
 				if !volumeInitialized {
@@ -273,6 +273,9 @@ func (p *MediaPlayer) run(playerEventChan chan playerEvent) {
 					ps.Volume = p.player.getVolume()
 					p.volumeChange <- ps.Volume
 				}
+
+			case PLAYER_EVENT_PAUSE:
+				p.setPlayState(&ps, StatePaused)
 
 			case PLAYER_EVENT_END:
 				if ps.Index+1 < len(ps.Playlist) {
@@ -286,12 +289,6 @@ func (p *MediaPlayer) run(playerEventChan chan playerEvent) {
 					ps.Position = 0
 					p.setPlayState(&ps, StateStopped)
 				}
-
-			case PLAYER_EVENT_PAUSE:
-				p.setPlayState(&ps, StatePaused)
-
-			case PLAYER_EVENT_UNPAUSE:
-				p.setPlayState(&ps, StatePlaying)
 			}
 		}
 	}

@@ -20,9 +20,8 @@ type Backend interface {
 type playerEvent int
 
 const (
-	PLAYER_EVENT_RESTART playerEvent = iota // playback has started or resumed from (e.g.) buffering
+	PLAYER_EVENT_PLAYING playerEvent = iota // playback has started or resumed from (e.g.) buffering
 	PLAYER_EVENT_PAUSE
-	PLAYER_EVENT_UNPAUSE
 	PLAYER_EVENT_END  // playback of current file/stream has ended
 	PLAYER_EVENT_QUIT // player has quit
 )
