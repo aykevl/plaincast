@@ -27,8 +27,8 @@ type VLC struct {
 
 // this data is separate to ensure it is only used synchronously
 type vlcInstance struct {
-	instance        *C.libvlc_instance_t
-	player          *C.libvlc_media_player_t
+	instance  *C.libvlc_instance_t
+	player    *C.libvlc_media_player_t
 	eventChan chan State
 }
 
