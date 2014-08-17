@@ -100,7 +100,7 @@ func (p *MediaPlayer) getYouTubeStream(videoId string) string {
 		return stream
 	}
 
-	youtubeUrl := "http://www.youtube.com/watch?v=" + videoId
+	youtubeUrl := "https://www.youtube.com/watch?v=" + videoId
 
 	fmt.Println("Fetching YouTube stream...", youtubeUrl)
 	cmd := exec.Command("youtube-dl", "-g", "-f", "bestaudio", youtubeUrl)
