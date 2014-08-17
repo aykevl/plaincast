@@ -39,7 +39,9 @@ func New(stateChange chan StateChange, volumeChange chan int) *MediaPlayer {
 }
 
 func (p *MediaPlayer) Quit() {
-	p.player.quit()
+	go func() {
+		p.player.quit()
+	}()
 
 	// TODO: fix race conditions
 	close(p.stateChange)

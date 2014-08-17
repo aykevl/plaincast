@@ -65,6 +65,7 @@ type UPnPServer struct {
 	apps                map[string]apps.App
 	friendlyName        string
 	appMatchString      *regexp.Regexp
+	proxyClient         *http.Client
 }
 
 func NewUPnPServer() *UPnPServer {
@@ -81,8 +82,12 @@ func NewUPnPServer() *UPnPServer {
 	us.apps = make(map[string]apps.App)
 	us.apps["YouTube"] = youtube.New(FRIENDLY_NAME)
 
+	// http Client as used by the proxy
+	us.proxyClient = &http.Client{}
+
 	http.HandleFunc("/upnp/description.xml", us.serveDescription)
 	http.HandleFunc("/apps/", us.serveApp)
+	http.HandleFunc("/proxy/", us.serveProxy)
 
 	return us
 }
@@ -210,6 +215,47 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "text/xml; charset=utf-8")
 	err := us.appStateTemplate.Execute(w, appResponse)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// serveProxy is a simple proxy that is being used by the mplayer2 player
+// backend, because it doesn't support SSL.
+func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
+	fmt.Println("http", req.Method, req.URL.Path)
+
+	path := req.URL.Path
+	if req.URL.RawQuery != "" {
+		path += "?" + req.URL.RawQuery
+	}
+	path = "https://" + path[len("/proxy/"):]
+
+	// client/proxied request
+	creq, err := http.NewRequest("GET", path, nil)
+	if err != nil {
+		panic(err)
+	}
+	for key, values := range req.Header {
+		if key == "Host" {
+			continue
+		}
+		for _, value := range values {
+			creq.Header.Add(key, value)
+		}
+	}
+
+	resp, err := us.proxyClient.Do(creq)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.ContentLength >= 0 {
+		_, err = io.CopyN(w, resp.Body, resp.ContentLength)
+	} else {
+		_, err = io.Copy(w, resp.Body)
+	}
 	if err != nil {
 		panic(err)
 	}
