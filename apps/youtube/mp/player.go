@@ -251,7 +251,6 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 	ps := PlayState{}
 
 	ps.Volume = -1
-	volumeInitialized := false
 
 	for {
 		select {
@@ -278,10 +277,9 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 			case STATE_PLAYING:
 				p.setPlayState(&ps, STATE_PLAYING)
 
-				if !volumeInitialized {
-					volumeInitialized = true
-
-					ps.Volume = p.player.getVolume()
+				if ps.Volume == -1 {
+					ps.Volume = 100
+					p.player.setVolume(ps.Volume)
 					p.volumeChange <- ps.Volume
 				}
 
