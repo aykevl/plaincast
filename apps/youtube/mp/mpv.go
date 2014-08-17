@@ -41,18 +41,9 @@ func (mpv *MPV) initialize() chan State {
 	// Cache settings assume 128kbps audio stream (16kByte/s).
 	// The default is a cache size of 25MB, these are somewhat more sensible
 	// cache sizes IMO.
-	// Additionally, it's 160K because for some reason mpv gets really slow
-	// while loading long streams when it's below 160K.
-	// Due to a bug in ffmpeg, the whole stream is loaded before playback
-	// begins, unless we work around that using "ignidx". See:
-	//   https://github.com/mpv-player/mpv/issues/579
-	//   https://trac.ffmpeg.org/ticket/3842
 	mpv.setOptionInt("cache-default", 160)      // 10 seconds
 	mpv.setOptionInt("cache-pause-below", 8)    // ½  second
 	mpv.setOptionInt("cache-pause-restart", 16) // 1  seconds
-
-	// work around bug https://github.com/mpv-player/mpv/issues/579
-	mpv.setOptionString("demuxer-lavf-o", "fflags=+ignidx")
 
 	// some extra debugging information, but don't read from stdin
 	mpv.setOptionFlag("terminal", true)

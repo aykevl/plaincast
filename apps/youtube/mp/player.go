@@ -103,7 +103,17 @@ func (p *MediaPlayer) getYouTubeStream(videoId string) string {
 	youtubeUrl := "https://www.youtube.com/watch?v=" + videoId
 
 	fmt.Println("Fetching YouTube stream...", youtubeUrl)
-	cmd := exec.Command("youtube-dl", "-g", "-f", "bestaudio", youtubeUrl)
+	// First (mkv-container) audio only, then video with audio bitrate 100+
+	// (where video has the lowest possible quality), then slightly lower
+	// quality audio.
+	// We do this because for some reason DASH aac audio (in the MP4 container)
+	// doesn't support seeking in any of the tested players (mpv using
+	// libavformat, and vlc, gstreamer and mplayer2 using their own demuxers).
+	// But the MKV container seems to have much better support.
+	// See:
+	//   https://github.com/mpv-player/mpv/issues/579
+	//   https://trac.ffmpeg.org/ticket/3842
+	cmd := exec.Command("youtube-dl", "-g", "-f", "171/172/43/22/18", youtubeUrl)
 	cmd.Stderr = os.Stderr
 	output, err := cmd.Output()
 	fmt.Println("Got stream.")

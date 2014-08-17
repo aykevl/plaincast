@@ -50,7 +50,6 @@ It is advisable to run this regularly as it has to keep up with YouTube updates.
 
 ## Known issues
 
- *  Due to [a bug in ffmpeg](https://trac.ffmpeg.org/ticket/3842), libmpv either scans the whole stream (which takes very long and can be CPU intensive) or has problems with seeking. I hope they'll fix this soon. I have opted to disable seeking as I want to be able to run this server on low-powered device like the Raspberry Pi.
  *  So far, only DIAL is implemented, so the Chrome extension for Chromecast doesn't work yet (I suspect it uses mDNS, which is the successor of DIAL on Chromecast).
 
 ## Thanks
