@@ -35,7 +35,9 @@ func (mpv *MPV) initialize() chan State {
 
 	mpv.setOptionFlag("no-resume-playback", true)
 	mpv.setOptionFlag("no-video", true)
-	mpv.setOptionString("softvol", "auto")
+	// The default 'auto' somehow still changes the master volume when using
+	// PulseAudio.
+	mpv.setOptionString("softvol", "yes")
 	mpv.setOptionInt("volume", 100)
 
 	// Cache settings assume 128kbps audio stream (16kByte/s).
