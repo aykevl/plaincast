@@ -26,9 +26,7 @@ If you haven't already set up a Go workspace, create one now. Some people like t
 
 Then get the required packages and compile:
 
-    $ go get github.com/nu7hatch/gouuid
-    $ go get github.com/aykevl93/youtube-receiver
-    $ go install github.com/aykevl93/youtube-receiver
+    $ go get -u github.com/aykevl93/youtube-receiver
 
 To run the server, run the executable `bin/youtube-receiver` relative to your Go workspace. Any Android phone with YouTube app (or possibly iPhone, but I haven't tested) on the same network should recognize the server and it should be possible to play the audio of videos on it. The Chrome extension doesn't yet work.
 
