@@ -1,10 +1,10 @@
 # some helpful shortcuts
 
 build:
-	GOPATH="`pwd`"/../.. go install youtube-receiver
+	go install github.com/aykevl93/youtube-receiver
 
 fmt:
 	go fmt . ./apps ./apps/youtube ./apps/youtube/mp ./server
 
 run: build
-	../../bin/youtube-receiver
+	$(GOPATH)/bin/youtube-receiver
