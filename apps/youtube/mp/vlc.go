@@ -182,7 +182,7 @@ func (v *VLC) stop() {
 
 func (v *VLC) checkError(status C.int) {
 	if status < 0 {
-		panic(status)
+		panic(fmt.Sprintf("libvlc error: %s (%d)\n", C.GoString(C.libvlc_errmsg()), int(status)))
 	}
 }
 
