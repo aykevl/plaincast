@@ -51,6 +51,10 @@ func (p *MediaPlayer) Quit() {
 func (p *MediaPlayer) GetPosition() time.Duration {
 	ps := p.GetPlaystate()
 
+	return p.getPosition(ps)
+}
+
+func (p *MediaPlayer) getPosition(ps *PlayState) time.Duration {
 	var position time.Duration
 	if ps.State == STATE_STOPPED {
 		position = 0
@@ -161,11 +165,11 @@ func (p *MediaPlayer) setPlayState(ps *PlayState, state State, position time.Dur
 		ps.bufferingPosition = -1
 	}
 
-	go func() {
-		if position == -1 {
-			position = p.GetPosition()
-		}
+	if position == -1 {
+		position = p.getPosition(ps)
+	}
 
+	go func() {
 		p.stateChange <- StateChange{state, position}
 	}()
 }
