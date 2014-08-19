@@ -17,10 +17,10 @@ const (
 )
 
 type PlayState struct {
-	Playlist []string
-	Index    int
-	State    State
-	Volume   int
+	Playlist          []string
+	Index             int
+	State             State
+	Volume            int
 	bufferingPosition time.Duration
 }
 

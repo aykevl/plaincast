@@ -103,7 +103,7 @@ func (v *VLC) initialize() chan State {
 func (v *VLC) run(i *vlcInstance) {
 
 	for {
-		c, ok := <-v.commandChan;
+		c, ok := <-v.commandChan
 
 		if !ok {
 			C.libvlc_media_player_release(i.player)
