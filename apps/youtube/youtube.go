@@ -350,7 +350,7 @@ func (yt *YouTube) sendVolume(volume int) {
 func (yt *YouTube) sendPlaylist() {
 	ps := yt.mp.GetPlaystate()
 	if len(ps.Playlist) > 0 {
-		yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{"video_ids": strings.Join(ps.Playlist, ","), "video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
+		yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{"video_ids": strings.Join(ps.Playlist, ","), "video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(yt.mp.GetPosition().Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
 	} else {
 		yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{}}
 	}
@@ -359,7 +359,7 @@ func (yt *YouTube) sendPlaylist() {
 func (yt *YouTube) sendNowPlaying() {
 	ps := yt.mp.GetPlaystate()
 	if len(ps.Playlist) > 0 {
-		yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{"video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
+		yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{"video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(yt.mp.GetPosition().Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
 	} else {
 		yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{}}
 	}

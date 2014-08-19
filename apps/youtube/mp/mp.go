@@ -19,9 +19,9 @@ const (
 type PlayState struct {
 	Playlist []string
 	Index    int
-	Position time.Duration // position in playing video
 	State    State
 	Volume   int
+	bufferingPosition time.Duration
 }
 
 type StateChange struct {
