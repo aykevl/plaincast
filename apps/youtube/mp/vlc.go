@@ -103,20 +103,20 @@ func (v *VLC) initialize() chan State {
 func (v *VLC) run(i *vlcInstance) {
 
 	for {
-		select {
-		case c, ok := <-v.commandChan:
-			if !ok {
-				C.libvlc_media_player_release(i.player)
-				i.player = nil
-				C.libvlc_release(i.instance)
-				i.instance = nil
-				// channel is closed when player must quit
+		c, ok := <-v.commandChan;
 
-				close(i.eventChan)
-				return
-			}
-			c(i)
+		if !ok {
+			C.libvlc_media_player_release(i.player)
+			i.player = nil
+			C.libvlc_release(i.instance)
+			i.instance = nil
+			// channel is closed when player must quit
+
+			close(i.eventChan)
+			return
 		}
+
+		c(i)
 	}
 }
 
