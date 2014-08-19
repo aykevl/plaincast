@@ -69,7 +69,9 @@ func (v *VLC) initialize() chan State {
 
 	eventManager := C.libvlc_media_player_event_manager(i.player)
 	// all empty event handlers are there just to trigger the log
-	v.addEvent(eventManager, C.libvlc_MediaPlayerMediaChanged, func() {})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerMediaChanged, func() {
+		i.isPlaying = false
+	})
 	v.addEvent(eventManager, C.libvlc_MediaPlayerTimeChanged, func() {
 		if !i.isPlaying {
 			i.isPlaying = true
