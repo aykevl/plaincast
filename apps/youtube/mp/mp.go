@@ -28,3 +28,5 @@ type StateChange struct {
 	State    State
 	Position time.Duration
 }
+
+const INITIAL_VOLUME = 80

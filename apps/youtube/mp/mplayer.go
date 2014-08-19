@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,7 +22,7 @@ type MPlayer struct {
 }
 
 func (mpl *MPlayer) initialize() chan State {
-	mpl.process = exec.Command("mplayer", "--prefer-ipv4", "--cache=8192", "--slave", "--quiet", "--softvol", "--idle", "--input=nodefault-bindings:conf=/dev/null")
+	mpl.process = exec.Command("mplayer", "--prefer-ipv4", "--cache=8192", "--slave", "--quiet", "--softvol", "--volume="+strconv.Itoa(INITIAL_VOLUME), "--idle", "--input=nodefault-bindings:conf=/dev/null")
 
 	stdin, err := mpl.process.StdinPipe()
 	if err != nil {

@@ -264,8 +264,7 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 		fmt.Printf("Remote disconnected: %s (%s)\n", arguments["name"].(string), arguments["user"].(string))
 	case "getVolume":
 		go func() {
-			ps := yt.mp.GetPlaystate()
-			yt.sendVolume(ps.Volume)
+			yt.sendVolume(yt.mp.GetPlaystate().Volume)
 		}()
 	case "setVolume":
 		volume, err := strconv.Atoi(message.args[0].(map[string]interface{})["volume"].(string))

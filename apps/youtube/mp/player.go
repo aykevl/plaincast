@@ -241,7 +241,7 @@ func (p *MediaPlayer) updatePosition(ps *PlayState) {
 }
 
 func (p *MediaPlayer) SetVolume(volume int) {
-	p.changePlaystate(func(ps *PlayState) {
+	go p.changePlaystate(func(ps *PlayState) {
 		ps.Volume = volume
 		p.player.setVolume(volume)
 	})
@@ -290,7 +290,7 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 				p.setPlayState(&ps, STATE_PLAYING)
 
 				if ps.Volume == -1 {
-					ps.Volume = 100
+					ps.Volume = INITIAL_VOLUME
 					p.player.setVolume(ps.Volume)
 					p.volumeChange <- ps.Volume
 				}
