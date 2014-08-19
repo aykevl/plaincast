@@ -89,6 +89,11 @@ func (p *MediaPlayer) changePlaystate(callback func(*PlayState)) {
 // This function doesn't block, but changes may not be immediately applied.
 func (p *MediaPlayer) SetPlaystate(playlist []string, index int, position time.Duration) {
 	go p.changePlaystate(func(ps *PlayState) {
+		if ps.State == STATE_BUFFERING && ps.bufferingPosition == position && playlist[index] == ps.Playlist[ps.Index] {
+			// just in case something else has changed, update the playlist
+			p.updatePlaylist(ps, playlist)
+			return
+		}
 		ps.Playlist = playlist
 		ps.Index = index
 
@@ -167,30 +172,33 @@ func (p *MediaPlayer) setPlayState(ps *PlayState, state State, position time.Dur
 
 func (p *MediaPlayer) UpdatePlaylist(playlist []string) {
 	go p.changePlaystate(func(ps *PlayState) {
-
-		if len(ps.Playlist) == 0 {
-
-			if ps.State == STATE_PLAYING {
-				// just to be sure
-				panic("empty playlist while playing")
-			}
-			ps.Playlist = playlist
-
-			if ps.Index >= len(playlist) {
-				// this appears to be the normal behavior of YouTube
-				ps.Index = len(playlist) - 1
-			}
-
-			if ps.State == STATE_STOPPED {
-				p.startPlaying(ps, 0)
-			}
-
-		} else {
-			videoId := ps.Playlist[ps.Index]
-			ps.Playlist = playlist
-			p.setPlaylistIndex(ps, videoId)
-		}
+		p.updatePlaylist(ps, playlist)
 	})
+}
+
+func (p *MediaPlayer) updatePlaylist(ps *PlayState, playlist []string) {
+	if len(ps.Playlist) == 0 {
+
+		if ps.State == STATE_PLAYING {
+			// just to be sure
+			panic("empty playlist while playing")
+		}
+		ps.Playlist = playlist
+
+		if ps.Index >= len(playlist) {
+			// this appears to be the normal behavior of YouTube
+			ps.Index = len(playlist) - 1
+		}
+
+		if ps.State == STATE_STOPPED {
+			p.startPlaying(ps, 0)
+		}
+
+	} else {
+		videoId := ps.Playlist[ps.Index]
+		ps.Playlist = playlist
+		p.setPlaylistIndex(ps, videoId)
+	}
 }
 
 func (p *MediaPlayer) SetVideo(videoId string, position time.Duration) {
