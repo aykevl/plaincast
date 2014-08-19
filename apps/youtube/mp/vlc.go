@@ -32,6 +32,7 @@ type vlcInstance struct {
 	instance  *C.libvlc_instance_t
 	player    *C.libvlc_media_player_t
 	eventChan chan State
+	isPlaying bool
 }
 
 type vlcEvent struct {
@@ -47,7 +48,9 @@ var vlcNextEventId int
 //export vlc_callback_helper_go
 func vlc_callback_helper_go(event *C.struct_libvlc_event_t, userdata unsafe.Pointer) {
 	eventData := (*vlcEvent)(userdata)
-	fmt.Println("vlc event:", time.Now().Format("15:04:05.000"), C.GoString(C.libvlc_event_type_name(C.libvlc_event_type_t(event._type))))
+	if event._type != C.libvlc_MediaPlayerTimeChanged { // suppress this noisy event
+		fmt.Println(time.Now().Format("15:04:05.000"), "vlc event:", C.GoString(C.libvlc_event_type_name(C.libvlc_event_type_t(event._type))))
+	}
 	eventData.callback() // Yeah! We're finally running our callback!
 }
 
@@ -65,6 +68,32 @@ func (v *VLC) initialize() chan State {
 
 	v.commandChan = make(chan func(*vlcInstance))
 	i.eventChan = make(chan State)
+
+	eventManager := C.libvlc_media_player_event_manager(i.player)
+	// all empty event handlers are there just to trigger the log
+	v.addEvent(eventManager, C.libvlc_MediaPlayerMediaChanged, func() {})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerTimeChanged, func() {
+		if !i.isPlaying {
+			i.isPlaying = true
+			i.eventChan <- STATE_PLAYING
+		}
+	})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerEncounteredError, func() {})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerOpening, func() {})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerBuffering, func() {})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerPlaying, func() {})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerPaused, func() {
+		i.isPlaying = false
+		i.eventChan <- STATE_PAUSED
+	})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerStopped, func() {
+		i.isPlaying = false
+		i.eventChan <- STATE_STOPPED
+	})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerEndReached, func() {
+		i.isPlaying = false
+		i.eventChan <- STATE_STOPPED
+	})
 
 	go v.run(&i)
 
@@ -106,22 +135,6 @@ func (v *VLC) play(stream string, position time.Duration) {
 		defer C.libvlc_media_release(media)
 
 		C.libvlc_media_player_set_media(i.player, media)
-
-		eventManager := C.libvlc_media_player_event_manager(i.player)
-		// all empty event handlers are there just to trigger the log
-		v.addEvent(eventManager, C.libvlc_MediaPlayerMediaChanged, func() {})
-		v.addEvent(eventManager, C.libvlc_MediaPlayerOpening, func() {})
-		v.addEvent(eventManager, C.libvlc_MediaPlayerBuffering, func() {})
-		v.addEvent(eventManager, C.libvlc_MediaPlayerPlaying, func() {
-			i.eventChan <- STATE_PLAYING
-		})
-		v.addEvent(eventManager, C.libvlc_MediaPlayerPaused, func() {
-			i.eventChan <- STATE_PAUSED
-		})
-		v.addEvent(eventManager, C.libvlc_MediaPlayerStopped, func() {})
-		v.addEvent(eventManager, C.libvlc_MediaPlayerEndReached, func() {
-			i.eventChan <- STATE_STOPPED
-		})
 
 		// TODO seek to position if needed
 

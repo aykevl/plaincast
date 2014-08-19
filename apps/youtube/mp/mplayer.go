@@ -148,7 +148,7 @@ func (mpl *MPlayer) run(eventChan chan State) {
 				return
 			}
 
-			fmt.Println("mplayer:", time.Now().Format("15:04:05.000"), line)
+			fmt.Println(time.Now().Format("15:04:05.000"), "mplayer:", line)
 
 			if line == "Starting playback..." {
 				t := time.Now().Add(-position)
