@@ -1,3 +1,5 @@
+// +build ignore
+
 package mp
 
 // #include <mpv/client.h>

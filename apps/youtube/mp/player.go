@@ -30,7 +30,7 @@ func New(stateChange chan StateChange, volumeChange chan int) *MediaPlayer {
 	p.volumeChange = volumeChange
 	p.streams = make(map[string]string)
 
-	p.player = &MPV{}
+	p.player = &VLC{}
 	playerEventChan := p.player.initialize()
 
 	go p.run(playerEventChan)

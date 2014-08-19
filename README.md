@@ -11,12 +11,13 @@ I'm going to assume you're running Linux for this installation guide, preferably
 First, make sure you have the needed dependencies installed:
 
  *  golang 1.3 (1.1+ might also work, but 1.0 certainly doesn't)
- *  libmpv-dev
+ *  libvlc-dev
+ *  vlc (install vlc-nox or similar if you don't want X11)
  *  youtube-dl (see also 'notes on youtube-dl' below)
 
 These can be installed in one go under Debian Jessie:
 
-    $ sudo apt-get install golang libmpv-dev youtube-dl
+    $ sudo apt-get install golang libvlc-dev vlc-nox youtube-dl
 
 If you haven't already set up a Go workspace, create one now. Some people like to set it to their home directory, but you can also set it to a separate directory. In any case, set the environment variable `$GOROOT` to this path:
 

@@ -1,5 +1,3 @@
-// +build ignore
-
 package mp
 
 // #include <vlc/vlc.h>
