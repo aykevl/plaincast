@@ -262,11 +262,19 @@ func (p *MediaPlayer) Seek(position time.Duration) {
 	})
 }
 
-func (p *MediaPlayer) SetVolume(volume int) {
+// ChangeVolume increases or decreases the volume by the specified delta.
+// It returns a channel with the result, that can be ignored.
+func (p *MediaPlayer) ChangeVolume(delta int) chan int {
+	// the buffer makes sure a send will succeed even if the channel is never
+	// read: this way the channel can be garbage collected and won't leave a
+	// garbage goroutine if it is never read.
+	c := make(chan int, 1)
 	go p.changePlaystate(func(ps *PlayState) {
-		ps.Volume = volume
-		p.player.setVolume(volume)
+		ps.Volume += delta
+		p.player.setVolume(ps.Volume)
+		c <- ps.Volume
 	})
+	return c
 }
 
 func (p *MediaPlayer) Stop() {

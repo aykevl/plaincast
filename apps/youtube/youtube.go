@@ -268,13 +268,13 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 			yt.sendVolume(yt.mp.GetPlaystate().Volume)
 		}()
 	case "setVolume":
-		volume, err := strconv.Atoi(message.args[0].(map[string]interface{})["volume"].(string))
+		delta, err := strconv.Atoi(message.args[0].(map[string]interface{})["delta"].(string))
 		if err != nil {
 			panic(err)
 		}
 		go func() {
-			yt.mp.SetVolume(volume)
-			yt.sendVolume(volume)
+			volumeChan := yt.mp.ChangeVolume(delta)
+			yt.sendVolume(<-volumeChan)
 		}()
 	case "getPlaylist":
 		yt.sendPlaylist()
