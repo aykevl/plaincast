@@ -136,9 +136,11 @@ func (v *VLC) play(stream string, position time.Duration) {
 
 		C.libvlc_media_player_set_media(i.player, media)
 
-		// TODO seek to position if needed
-
 		v.checkError(C.libvlc_media_player_play(i.player))
+
+		if position != 0 {
+			C.libvlc_media_player_set_time(i.player, C.libvlc_time_t(position.Seconds()*1000+0.5))
+		}
 	}
 }
 
