@@ -266,6 +266,14 @@ func (p *MediaPlayer) Seek(position time.Duration) {
 	})
 }
 
+// SetVolume sets the volume of the player to the specified value (0-100).
+func (p *MediaPlayer) SetVolume(volume int) {
+	go p.changePlaystate(func(ps *PlayState) {
+		ps.Volume = volume
+		p.player.setVolume(ps.Volume)
+	})
+}
+
 // ChangeVolume increases or decreases the volume by the specified delta.
 // It returns a channel with the result, that can be ignored.
 func (p *MediaPlayer) ChangeVolume(delta int) chan int {
