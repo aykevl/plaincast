@@ -65,7 +65,8 @@ func (yt *YouTube) Start(postData string) {
 
 func (yt *YouTube) Stop() {
 	// shut down everything about this app
-	// WARNING: not thread-safe (some goroutines may still be busy with the media player)
+	// WARNING: not thread-safe (some goroutines may still be busy with the
+	// media player, or the media player may not have fully started).
 	yt.running = false
 	yt.mp.Quit()
 	yt.mp = nil
