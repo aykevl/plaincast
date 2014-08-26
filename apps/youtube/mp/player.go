@@ -329,12 +329,6 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 				return
 			}
 
-			if event == ps.State {
-				// status hasn't changed
-				// especially libvlc may send multiple events, ignore those
-				continue
-			}
-
 			switch event {
 			case STATE_PLAYING:
 				p.setPlayState(&ps, STATE_PLAYING, -1)
