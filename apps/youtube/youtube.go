@@ -248,6 +248,8 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 		return
 	}
 
+	receiveTime := time.Now()
+
 	switch message.command {
 	case "noop":
 		// no-op, ignore
@@ -352,7 +354,7 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 		return
 	}
 
-	fmt.Println(time.Now().Format("15:04:05.000"), "command:", message.index, message.command, message.args)
+	fmt.Println(receiveTime.Format("15:04:05.000"), "command:", message.index, message.command, message.args)
 }
 
 func (yt *YouTube) sendVolume(volume int) {
