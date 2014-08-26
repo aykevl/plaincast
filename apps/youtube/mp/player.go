@@ -155,9 +155,6 @@ func (p *MediaPlayer) getYouTubeStream(videoId string) string {
 // setPlayState sets updates the PlayState and sends events.
 // position may be -1: in that case it will be updated.
 func (p *MediaPlayer) setPlayState(ps *PlayState, state State, position time.Duration) {
-	if state == ps.State {
-		fmt.Printf("WARNING: state %d did not change\n", state)
-	}
 	ps.State = state
 
 	if state == STATE_BUFFERING {
