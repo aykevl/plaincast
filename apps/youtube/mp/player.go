@@ -40,6 +40,7 @@ func New(stateChange chan StateChange, volumeChange chan int) *MediaPlayer {
 
 func (p *MediaPlayer) Quit() {
 	go func() {
+		// TODO: fix race conditions (the player might not be fully initialized yet)
 		p.player.quit()
 	}()
 
