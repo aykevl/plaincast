@@ -3,6 +3,8 @@ package mp
 // This library is a wrapper around a media player that plays YouTube playlists.
 
 import (
+	"fmt"
+	"os"
 	"time"
 )
 
@@ -30,3 +32,7 @@ type StateChange struct {
 }
 
 const INITIAL_VOLUME = 80
+
+func log(v ...interface{}) {
+	os.Stdout.WriteString(time.Now().Format("15:04:05.000 ") + fmt.Sprintln(v...))
+}

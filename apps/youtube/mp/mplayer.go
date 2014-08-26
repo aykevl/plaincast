@@ -36,7 +36,7 @@ func (mpl *MPlayer) initialize() chan State {
 	}
 	mpl.stdout = bufio.NewReader(stdout)
 
-	fmt.Println("Starting MPlayer...")
+	log("Starting MPlayer...")
 	err = mpl.process.Start()
 	if err != nil {
 		panic(err)
@@ -55,7 +55,7 @@ func (mpl *MPlayer) initialize() chan State {
 
 func (mpl *MPlayer) sendCommand(command string) {
 	for _, part := range strings.Split(strings.TrimSpace(command), "\n") {
-		fmt.Println("mplayer command:", part)
+		log("mplayer command:", part)
 	}
 	_, err := mpl.stdin.Write([]byte(command))
 	if err != nil {
@@ -149,7 +149,7 @@ func (mpl *MPlayer) run(eventChan chan State) {
 				return
 			}
 
-			fmt.Println(time.Now().Format("15:04:05.000"), "mplayer:", line)
+			log("mplayer:", line)
 
 			if line == "Starting playback..." {
 				t := time.Now().Add(-position)

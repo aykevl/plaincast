@@ -17,7 +17,6 @@ import "C"
 import "unsafe"
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -47,7 +46,7 @@ var vlcNextEventId int
 func vlc_callback_helper_go(event *C.struct_libvlc_event_t, userdata unsafe.Pointer) {
 	eventData := (*vlcEvent)(userdata)
 	if event._type != C.libvlc_MediaPlayerTimeChanged { // suppress this noisy event
-		fmt.Println(time.Now().Format("15:04:05.000"), "vlc event:", C.GoString(C.libvlc_event_type_name(C.libvlc_event_type_t(event._type))))
+		log("vlc event:", C.GoString(C.libvlc_event_type_name(C.libvlc_event_type_t(event._type))))
 	}
 	eventData.callback() // Yeah! We're finally running our callback!
 }
@@ -197,7 +196,7 @@ func (v *VLC) stop() {
 
 func (v *VLC) checkError(status C.int) {
 	if status < 0 {
-		panic(fmt.Sprintf("libvlc error: %s (%d)\n", C.GoString(C.libvlc_errmsg()), int(status)))
+		panic("libvlc error: " + C.GoString(C.libvlc_errmsg()))
 	}
 }
 
