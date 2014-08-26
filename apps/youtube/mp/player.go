@@ -313,7 +313,7 @@ func (p *MediaPlayer) Stop() {
 func (p *MediaPlayer) run(playerEventChan chan State) {
 	ps := PlayState{}
 
-	ps.Volume = -1
+	ps.Volume = INITIAL_VOLUME
 
 	for {
 		select {
@@ -332,12 +332,6 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 			switch event {
 			case STATE_PLAYING:
 				p.setPlayState(&ps, STATE_PLAYING, -1)
-
-				if ps.Volume == -1 {
-					ps.Volume = INITIAL_VOLUME
-					p.player.setVolume(ps.Volume)
-					p.volumeChange <- ps.Volume
-				}
 
 			case STATE_PAUSED:
 				p.setPlayState(&ps, STATE_PAUSED, -1)

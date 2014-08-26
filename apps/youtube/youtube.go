@@ -401,7 +401,7 @@ func (yt *YouTube) sendMessages() {
 
 func (yt *YouTube) observeStateChange(ch chan mp.StateChange) {
 	for change := range ch {
-		if change.State == mp.STATE_BUFFERING {
+		if change.State == mp.STATE_BUFFERING || change.State == mp.STATE_STOPPED {
 			yt.sendNowPlaying()
 		}
 		yt.outgoingMessages <- outgoingMessage{"onStateChange", map[string]string{"currentTime": strconv.FormatFloat(change.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(change.State))}}

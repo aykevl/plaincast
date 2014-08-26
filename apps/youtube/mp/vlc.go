@@ -17,6 +17,7 @@ import "C"
 import "unsafe"
 
 import (
+	"errors"
 	"time"
 )
 
@@ -26,14 +27,17 @@ type VLC struct {
 
 // this data is separate to ensure it is only used synchronously
 type vlcInstance struct {
-	instance  *C.libvlc_instance_t
-	player    *C.libvlc_media_player_t
-	eventChan chan State
-	isPlaying bool
+	instance   *C.libvlc_instance_t
+	player     *C.libvlc_media_player_t
+	silence    *C.libvlc_media_t
+	eventChan  chan State
+	isPlaying  bool
+	isStopping bool
 }
 
 type vlcEvent struct {
 	id        int
+	manager   *C.libvlc_event_manager_t
 	eventType C.libvlc_event_type_t
 	callback  func()
 }
@@ -67,9 +71,38 @@ func (v *VLC) initialize() chan State {
 	i.eventChan = make(chan State)
 
 	eventManager := C.libvlc_media_player_event_manager(i.player)
+
+	// make sure audio playback has started so volume can be adjusted etc.
+	endReachedChan := make(chan bool)
+	event := v.addEvent(eventManager, C.libvlc_MediaPlayerEndReached, func() {
+		endReachedChan <- true
+	})
+
+	cStream := C.CString("http://localhost:8008/hacks/silence.wav")
+	defer C.free(unsafe.Pointer(cStream))
+
+	i.silence = C.libvlc_media_new_location(i.instance, cStream)
+
+	C.libvlc_media_player_set_media(i.player, i.silence)
+
+	v.checkError(C.libvlc_media_player_play(i.player))
+
+	// only start mainloop the moment the silence has played
+	<-endReachedChan
+	v.removeEvent(event)
+
+	// now the player has an output, so setVolume will work
+
+	// TODO: all event handlers here (except for the empty ones) contain race
+	// conditions.
+
 	// all empty event handlers are there just to trigger the log
 	v.addEvent(eventManager, C.libvlc_MediaPlayerMediaChanged, func() {
 		i.isPlaying = false
+		if i.isStopping {
+			i.isStopping = false
+			i.eventChan <- STATE_STOPPED
+		}
 	})
 	v.addEvent(eventManager, C.libvlc_MediaPlayerTimeChanged, func() {
 		if !i.isPlaying {
@@ -96,6 +129,8 @@ func (v *VLC) initialize() chan State {
 
 	go v.run(&i)
 
+	v.setVolume(INITIAL_VOLUME)
+
 	return i.eventChan
 }
 
@@ -105,6 +140,8 @@ func (v *VLC) run(i *vlcInstance) {
 		c, ok := <-v.commandChan
 
 		if !ok {
+			C.libvlc_media_release(i.silence)
+			i.silence = nil
 			C.libvlc_media_player_release(i.player)
 			i.player = nil
 			C.libvlc_release(i.instance)
@@ -190,7 +227,11 @@ func (v *VLC) setVolume(volume int) {
 
 func (v *VLC) stop() {
 	v.commandChan <- func(i *vlcInstance) {
-		C.libvlc_media_player_stop(i.player)
+		// hack to work around volume management
+		// by playing silence (for a very short while), the audio output is
+		// kept active so calls to setVolume still work
+		i.isStopping = true
+		C.libvlc_media_player_set_media(i.player, i.silence)
 	}
 }
 
@@ -200,12 +241,28 @@ func (v *VLC) checkError(status C.int) {
 	}
 }
 
-func (v *VLC) addEvent(manager *C.libvlc_event_manager_t, eventType C.libvlc_event_type_t, callback func()) {
+// addEvent adds a VLC event with the given type and callback.
+// It returns a unique number that can be used to remove the event later (using removeEvent).
+func (v *VLC) addEvent(manager *C.libvlc_event_manager_t, eventType C.libvlc_event_type_t, callback func()) int {
 	id := vlcNextEventId
 	vlcNextEventId++
 
-	event := &vlcEvent{id, eventType, callback}
+	event := &vlcEvent{id, manager, eventType, callback}
 	vlcEvents[id] = event
 
 	v.checkError(C.libvlc_event_attach(manager, eventType, C.callback_helper_var(), unsafe.Pointer(event)))
+
+	return id
+}
+
+// removeEvent removes a previously-added VLC event
+func (v *VLC) removeEvent(eventId int) error {
+	event, ok := vlcEvents[eventId]
+	if !ok {
+		return errors.New("cannot find event")
+	}
+
+	C.libvlc_event_detach(event.manager, event.eventType, C.callback_helper_var(), unsafe.Pointer(event))
+
+	return nil
 }
