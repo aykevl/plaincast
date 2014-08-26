@@ -339,6 +339,7 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 					// Especially VLC may keep sending 'stopped' events
 					// while the next track is already buffering.
 					// Ignore those events.
+					fmt.Println("WARNING: 'stopped' event while buffering")
 					continue
 				}
 				if ps.Index+1 < len(ps.Playlist) {
