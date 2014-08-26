@@ -282,8 +282,19 @@ func (p *MediaPlayer) ChangeVolume(delta int) chan int {
 	// garbage goroutine if it is never read.
 	c := make(chan int, 1)
 	go p.changePlaystate(func(ps *PlayState) {
+
 		ps.Volume += delta
+		// pressing 'volume up' or 'volume down' keeps sending volume
+		// increase/decrease messages. Keep the volume within range 0-100.
+		if ps.Volume < 0 {
+			ps.Volume = 0
+		}
+		if ps.Volume > 100 {
+			ps.Volume = 100
+		}
+
 		p.player.setVolume(ps.Volume)
+
 		c <- ps.Volume
 	})
 	return c
