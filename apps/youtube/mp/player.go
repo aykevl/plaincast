@@ -111,6 +111,17 @@ func (p *MediaPlayer) SetPlaystate(playlist []string, index int, position time.D
 }
 
 func (p *MediaPlayer) startPlaying(ps *PlayState, position time.Duration) {
+	if ps.State == STATE_PLAYING {
+		// Pause the currently playing track.
+		// This has multiple benefits:
+		//  *  When pressing 'play', the user probably expects the next video to
+		//     be played immediately, or if that is not possible, expects the
+		//     current video to stop playing.
+		//  *  On very slow systems, like the Raspberry Pi, downloading the
+		//     stream URL for the next video doesn't interrupt the currently
+		//     playing video.
+		p.player.pause()
+	}
 	p.setPlayState(ps, STATE_BUFFERING, position)
 
 	videoId := ps.Playlist[ps.Index]
