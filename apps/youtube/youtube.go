@@ -409,8 +409,15 @@ func (yt *YouTube) sendMessages() {
 		for k, v := range message.args {
 			values.Set("req0_"+k, v)
 		}
-		fmt.Println(time.Now().Format("15:04:05.000"), "send msg:", message.command, message.args)
-		mustPostForm(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s", yt.uuid, url.QueryEscape(yt.friendlyName), yt.loungeToken, yt.sid, yt.nextRid(), yt.aid, yt.gsessionid, zx()), values)
+
+		timeBeforeSend := time.Now()
+
+		mustPostForm(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
+			yt.uuid, url.QueryEscape(yt.friendlyName), yt.loungeToken, yt.sid, yt.nextRid(), yt.aid, yt.gsessionid, zx()), values)
+
+		latency := time.Now().Sub(timeBeforeSend) / time.Millisecond * time.Millisecond
+		fmt.Println(time.Now().Format("15:04:05.000"), "send msg:", latency, message.command, message.args)
+
 		count += 1
 	}
 }
