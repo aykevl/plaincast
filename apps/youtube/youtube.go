@@ -163,13 +163,19 @@ func (yt *YouTube) bind() {
 
 	for {
 		fmt.Println("Connecting to message channel...")
+
 		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=rpc&SID=%s&CI=0&AID=%d&gsessionid=%s&TYPE=xmlhttp&zx=%s", yt.uuid, url.QueryEscape(yt.friendlyName), yt.loungeToken, yt.sid, yt.aid, yt.gsessionid, zx())
+
+		timeBeforeGet := time.Now()
+
 		resp, err = http.Get(bindUrl)
 		if err != nil {
 			panic(err)
 		}
 
-		fmt.Println("Connected.")
+		latency := time.Now().Sub(timeBeforeGet) / time.Millisecond * time.Millisecond
+		fmt.Println("Connected in", latency)
+
 		yt.handleMessageStream(resp, false)
 
 		if !yt.running {
