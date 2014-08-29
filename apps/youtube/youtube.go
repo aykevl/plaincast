@@ -190,11 +190,17 @@ func (yt *YouTube) handleMessageStream(resp *http.Response, singleBatch bool) {
 	for {
 		reader := bufio.NewReader(resp.Body)
 		line, err := reader.ReadString('\n')
-		if err == io.EOF {
-			// end of stream
+		if line == "" && (err == io.EOF || err == io.ErrUnexpectedEOF) {
+			// This is the end of the stream.
+			// Unfortunately, the YouTube API servers seem to have such a bad
+			// HTTP implementation that they don't always finish the chunked
+			// HTTP stream before closing the connection. That results in an
+			// "unexpected EOF" error. We must treat this error as an EOF error,
+			// and thus simply close the connection.
 			return
 		}
 		if err != nil {
+			fmt.Printf("line: '%s'\n", line)
 			panic(err)
 		}
 
