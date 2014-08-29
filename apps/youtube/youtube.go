@@ -222,6 +222,7 @@ func (yt *YouTube) handleMessageStream(resp *http.Response, singleBatch bool) {
 			panic(err)
 		}
 
+		// TODO: This is a race condition.
 		if !yt.running {
 			break
 		}
