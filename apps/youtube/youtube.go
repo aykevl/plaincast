@@ -155,7 +155,9 @@ func (yt *YouTube) bind() {
 	}
 
 	yt.handleMessageStream(resp, true)
-	// now yt.sid and yt.gsessionid should be defined
+
+	// now yt.sid and yt.gsessionid should be defined, so sendMessages has
+	// enough information to start
 
 	go yt.sendMessages()
 
