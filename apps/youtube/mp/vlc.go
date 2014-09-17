@@ -31,6 +31,7 @@ type vlcInstance struct {
 	player     *C.libvlc_media_player_t
 	silence    *C.libvlc_media_t
 	eventChan  chan State
+	isPlaying  bool
 	isStopping bool
 }
 
@@ -92,27 +93,40 @@ func (v *VLC) initialize() chan State {
 
 	// now the player has an output, so setVolume will work
 
+	// TODO: all event handlers here (except for the empty ones) contain race
+	// conditions.
+
 	// all empty event handlers are there just to trigger the log
 	v.addEvent(eventManager, C.libvlc_MediaPlayerMediaChanged, func() {
-		// TODO this event handler contains a race condition
+		i.isPlaying = false
 		if i.isStopping {
 			i.isStopping = false
 			i.eventChan <- STATE_STOPPED
 		}
 	})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerTimeChanged, func() {
+		if !i.isPlaying {
+			i.isPlaying = true
+			i.isStopping = false
+			i.eventChan <- STATE_PLAYING
+		}
+	})
 	v.addEvent(eventManager, C.libvlc_MediaPlayerEncounteredError, func() {})
 	v.addEvent(eventManager, C.libvlc_MediaPlayerOpening, func() {})
 	v.addEvent(eventManager, C.libvlc_MediaPlayerBuffering, func() {})
-	v.addEvent(eventManager, C.libvlc_MediaPlayerPlaying, func() {
-		i.eventChan <- STATE_PLAYING
-	})
+	v.addEvent(eventManager, C.libvlc_MediaPlayerPlaying, func() {})
 	v.addEvent(eventManager, C.libvlc_MediaPlayerPaused, func() {
+		i.isPlaying = false
 		i.eventChan <- STATE_PAUSED
 	})
 	v.addEvent(eventManager, C.libvlc_MediaPlayerStopped, func() {
+		i.isPlaying = false
+		i.isStopping = false
 		i.eventChan <- STATE_STOPPED
 	})
 	v.addEvent(eventManager, C.libvlc_MediaPlayerEndReached, func() {
+		i.isPlaying = false
+		i.isStopping = false
 		i.eventChan <- STATE_STOPPED
 	})
 
