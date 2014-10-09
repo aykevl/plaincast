@@ -253,14 +253,18 @@ func (p *MediaPlayer) Pause() {
 	})
 }
 
-// Resume resumes playback when it was paused
-func (p *MediaPlayer) Resume() {
+// Play resumes playback when it was paused
+func (p *MediaPlayer) Play() {
 	go p.changePlaystate(func(ps *PlayState) {
-		if ps.State != STATE_PAUSED {
+		switch ps.State {
+		case STATE_PAUSED:
+			p.player.resume()
+		case STATE_STOPPED:
+			// Restart from the beginning.
+			p.startPlaying(ps, 0)
+		default:
 			fmt.Printf("Warning: resume while in state %d\n", ps.State)
 		}
-
-		p.player.resume()
 	})
 }
 

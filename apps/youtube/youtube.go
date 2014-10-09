@@ -355,7 +355,7 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 	case "pause":
 		yt.mp.Pause()
 	case "play":
-		yt.mp.Resume()
+		yt.mp.Play()
 	case "seekTo":
 		position, err := time.ParseDuration(message.args[0].(map[string]interface{})["newTime"].(string) + "s")
 		if err != nil {
