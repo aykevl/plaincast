@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/aykevl93/youtube-receiver/apps/youtube/mp"
-	"github.com/nu7hatch/gouuid"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -14,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aykevl93/youtube-receiver/apps/youtube/mp"
+	"github.com/nu7hatch/gouuid"
 )
 
 type YouTube struct {
