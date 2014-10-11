@@ -2,6 +2,8 @@ package youtube
 
 import (
 	"io"
+	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -39,28 +41,25 @@ func mustPostForm(url string, values url.Values) []byte {
 }
 
 func processRequest(resp *http.Response) []byte {
-	var buf []byte
 	if resp.ContentLength < 0 {
-		buf = make([]byte, 4096)
-		n, err := resp.Body.Read(buf)
-		if err != nil && err != io.EOF {
+		buf, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
 			panic(err)
 		}
-		if n == 4096 {
-			panic("data is bigger than buffer")
-		}
-		buf = buf[:n]
-	} else {
-		buf = make([]byte, resp.ContentLength)
-		n, err := resp.Body.Read(buf)
-		if err != nil && err != io.EOF {
-			panic(err)
-		}
-		if int64(n) != resp.ContentLength {
-			panic("data received not of the right length")
-		}
-		buf = buf[:n]
-	}
+		return buf
 
-	return buf
+	} else {
+		buf := make([]byte, resp.ContentLength)
+		_, err := io.ReadFull(resp.Body, buf)
+		if err != nil {
+			panic(err)
+		}
+		return buf
+	}
+}
+
+func handle(err error, message string) {
+	if err != nil {
+		log.Fatalf("%s: %s\n", message, err)
+	}
 }
