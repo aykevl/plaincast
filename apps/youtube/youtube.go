@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -82,7 +83,7 @@ func (yt *YouTube) Stop() {
 }
 
 func (yt *YouTube) run(postData string) {
-	fmt.Println("running YouTube:", postData)
+	log.Println("running YouTube:", postData)
 
 	var err error
 

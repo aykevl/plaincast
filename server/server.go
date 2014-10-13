@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/nu7hatch/gouuid"
 )
@@ -19,13 +20,13 @@ func Serve() {
 	var err error
 	deviceUUID, err = getUUID()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	us := NewUPnPServer()
 	httpPort, err := us.startServing()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("serving HTTP on port", httpPort)
 
