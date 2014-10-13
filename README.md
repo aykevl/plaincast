@@ -1,4 +1,4 @@
-# YouTube receiver
+# Plaincast
 
 This is a small [DIAL](http://www.dial-multiscreen.org) server that emulates Chromecast-like devices, and implements the YouTube app. It only renders the audio, not the video, so it is very lightweight and can run headless.
 
@@ -27,11 +27,11 @@ If you haven't already set up a Go workspace, create one now. Some people like t
 
 Then get the required packages and compile:
 
-    $ go get -u github.com/aykevl93/youtube-receiver
+    $ go get -u github.com/aykevl93/plaincast
 
-To run the server, run the executable `bin/youtube-receiver` relative to your Go workspace. Any Android phone with YouTube app (or possibly iPhone, but I haven't tested) on the same network should recognize the server and it should be possible to play the audio of videos on it. The Chrome extension doesn't yet work.
+To run the server, run the executable `bin/plaincast` relative to your Go workspace. Any Android phone with YouTube app (or possibly iPhone, but I haven't tested) on the same network should recognize the server and it should be possible to play the audio of videos on it. The Chrome extension doesn't yet work.
 
-    $ bin/youtube-receiver
+    $ bin/plaincast
 
 ## Notes on youtube-dl
 
@@ -45,7 +45,7 @@ Afterwards, you can update youtube-dl using:
 
     $ sudo pip install --upgrade youtube-dl
 
-It is advisable to run this regularly as it has to keep up with YouTube updates. Certainly first try updating youtube-dl when youtube-receiver stops working.
+It is advisable to run this regularly as it has to keep up with YouTube updates. Certainly first try updating youtube-dl when plaincast stops working.
 
 ## Known issues
 

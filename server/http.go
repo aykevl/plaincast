@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"text/template"
 
-	"github.com/aykevl93/youtube-receiver/apps"
-	"github.com/aykevl93/youtube-receiver/apps/youtube"
+	"github.com/aykevl93/plaincast/apps"
+	"github.com/aykevl93/plaincast/apps/youtube"
 )
 
 // This implements a UPnP/DIAL server.

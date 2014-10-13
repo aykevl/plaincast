@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aykevl93/youtube-receiver/apps/youtube/mp"
-	"github.com/aykevl93/youtube-receiver/config"
+	"github.com/aykevl93/plaincast/apps/youtube/mp"
+	"github.com/aykevl93/plaincast/config"
 	"github.com/nu7hatch/gouuid"
 )
 

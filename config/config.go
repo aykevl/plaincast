@@ -17,7 +17,7 @@ type Config struct {
 }
 
 var config *Config
-const CONFIG_FILENAME = ".config/youtube-receiver.json"
+const CONFIG_FILENAME = ".config/plaincast.json"
 
 
 // Get returns a global Config instance.

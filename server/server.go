@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	NAME          = "YouTube-receiver"
-	FRIENDLY_NAME = "YouTube receiver"
+	NAME          = "Plaincast"
+	FRIENDLY_NAME = "Plaincast"
 	VERSION       = "0.0.1"
 	CONFIGID      = 1
 )

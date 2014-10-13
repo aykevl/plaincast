@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/aykevl93/youtube-receiver/server"
+	"github.com/aykevl93/plaincast/server"
 )
 
 func main() {
