@@ -163,8 +163,6 @@ func (yt *YouTube) bind() {
 	go yt.sendMessages()
 
 	for {
-		fmt.Println("Connecting to message channel...")
-
 		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=rpc&SID=%s&CI=0&AID=%d&gsessionid=%s&TYPE=xmlhttp&zx=%s", yt.uuid, url.QueryEscape(yt.friendlyName), yt.loungeToken, yt.sid, yt.aid, yt.gsessionid, zx())
 
 		timeBeforeGet := time.Now()
@@ -175,7 +173,7 @@ func (yt *YouTube) bind() {
 		}
 
 		latency := time.Now().Sub(timeBeforeGet) / time.Millisecond * time.Millisecond
-		fmt.Println("Connected in", latency)
+		fmt.Println(time.Now().Format("15:04:05.000"), "Connected to message channel in", latency)
 
 		yt.handleMessageStream(resp, false)
 
@@ -370,7 +368,9 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 		return
 	}
 
-	fmt.Println(receiveTime.Format("15:04:05.000"), "command:", message.index, message.command, message.args)
+	if message.command != "noop" { // ignore verbose no-op
+		fmt.Println(receiveTime.Format("15:04:05.000"), "command:", message.index, message.command, message.args)
+	}
 }
 
 func (yt *YouTube) sendVolume(volume int) {
