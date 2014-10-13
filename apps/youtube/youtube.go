@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aykevl93/youtube-receiver/apps/youtube/mp"
+	"github.com/aykevl93/youtube-receiver/config"
 	"github.com/nu7hatch/gouuid"
 )
 
@@ -77,13 +78,22 @@ func (yt *YouTube) Stop() {
 func (yt *YouTube) run(postData string) {
 	fmt.Println("running YouTube:", postData)
 
+	var err error
+
 	// this appears to be a random number between 10000-99999
 	yt.rid = rand.Intn(80000) + 10000
-	uuid, err := uuid.NewV4()
+
+	c := config.Get()
+	yt.uuid, err = c.GetString("apps.youtube.uuid", func () (string, error) {
+		uuid, err := uuid.NewV4()
+		if err != nil {
+			return "", err
+		}
+		return uuid.String(), nil
+	})
 	if err != nil {
 		panic(err)
 	}
-	yt.uuid = uuid.String()
 	yt.outgoingMessages = make(chan outgoingMessage, 3)
 	yt.aid = -1
 
@@ -118,14 +128,25 @@ func (yt *YouTube) Running() bool {
 }
 
 func (yt *YouTube) connect(pairingCode string) {
-	fmt.Println("Getting screen_id...")
-	screenId := string(mustGet("https://www.youtube.com/api/lounge/pairing/generate_screen_id"))
+	c := config.Get()
+
+	screenId, err := c.GetString("apps.youtube.screenId", func() (string, error) {
+		fmt.Println("Getting screen_id...")
+		buf, err := httpGetBody("https://www.youtube.com/api/lounge/pairing/generate_screen_id")
+		return string(buf), err
+	})
+	if err != nil {
+		panic(err)
+	}
 
 	fmt.Println("Getting lounge token batch...")
 	params := url.Values{
 		"screen_ids": []string{screenId},
 	}
-	data := mustPostForm("https://www.youtube.com/api/lounge/pairing/get_lounge_token_batch", params)
+	data, err := httpPostFormBody("https://www.youtube.com/api/lounge/pairing/get_lounge_token_batch", params)
+	if err != nil {
+		panic(err)
+	}
 	loungeTokenBatch := loungeTokenBatchJson{}
 	json.Unmarshal(data, &loungeTokenBatch)
 	yt.loungeToken = loungeTokenBatch.Screens[0].LoungeToken
@@ -139,7 +160,10 @@ func (yt *YouTube) connect(pairingCode string) {
 		"pairing_code": []string{pairingCode},
 		"screen_id":    []string{screenId},
 	}
-	mustPostForm("https://www.youtube.com/api/lounge/pairing/register_pairing_code", params)
+	_, err = httpPostFormBody("https://www.youtube.com/api/lounge/pairing/register_pairing_code", params)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (yt *YouTube) bind() {
@@ -414,8 +438,11 @@ func (yt *YouTube) sendMessages() {
 
 		timeBeforeSend := time.Now()
 
-		mustPostForm(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
+		_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
 			yt.uuid, url.QueryEscape(yt.friendlyName), yt.loungeToken, yt.sid, yt.nextRid(), yt.aid, yt.gsessionid, zx()), values)
+		if err != nil {
+			panic(err)
+		}
 
 		latency := time.Now().Sub(timeBeforeSend) / time.Millisecond * time.Millisecond
 		fmt.Println(time.Now().Format("15:04:05.000"), "send msg:", latency, message.command, message.args)

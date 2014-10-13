@@ -20,41 +20,36 @@ func zx() []byte {
 	return buf
 }
 
-func mustGet(url string) []byte {
+func httpGetBody(url string) ([]byte, error) {
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	return processRequest(resp)
 }
 
-func mustPostForm(url string, values url.Values) []byte {
+func httpPostFormBody(url string, values url.Values) ([]byte, error) {
 	resp, err := http.PostForm(url, values)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	return processRequest(resp)
 }
 
-func processRequest(resp *http.Response) []byte {
+func processRequest(resp *http.Response) ([]byte, error) {
 	if resp.ContentLength < 0 {
-		buf, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			panic(err)
-		}
-		return buf
-
+		return ioutil.ReadAll(resp.Body)
 	} else {
 		buf := make([]byte, resp.ContentLength)
 		_, err := io.ReadFull(resp.Body, buf)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
-		return buf
+		return buf, nil
 	}
 }
 
