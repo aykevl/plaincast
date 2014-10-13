@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -200,7 +201,21 @@ func (yt *YouTube) bind() {
 
 		resp, err = http.Get(bindUrl)
 		if err != nil {
-			panic(err)
+			fmt.Fprintln(os.Stderr, err)
+			yt.Stop()
+			break
+		}
+
+		if resp.StatusCode != 200 {
+			fmt.Fprintln(os.Stderr, "HTTP error while connecting to message channel:", resp.StatusCode)
+
+			// most likely the YouTube server gives back an error in HTML form
+			buf, err := ioutil.ReadAll(resp.Body)
+			handle(err, "error while reading error message")
+			fmt.Fprintf(os.Stderr, "Response body:\n%s\n\n", string(buf))
+
+			yt.Stop()
+			break
 		}
 
 		latency := time.Now().Sub(timeBeforeGet) / time.Millisecond * time.Millisecond
@@ -218,32 +233,25 @@ func (yt *YouTube) bind() {
 func (yt *YouTube) handleMessageStream(resp *http.Response, singleBatch bool) {
 	defer resp.Body.Close()
 
+	reader := bufio.NewReader(resp.Body)
+
 	for {
-		reader := bufio.NewReader(resp.Body)
 		line, err := reader.ReadString('\n')
-		if line == "" && (err == io.EOF || err == io.ErrUnexpectedEOF) {
-			// This is the end of the stream.
-			// Unfortunately, the YouTube API servers seem to have such a bad
-			// HTTP implementation that they don't always finish the chunked
-			// HTTP stream before closing the connection. That results in an
-			// "unexpected EOF" error. We must treat this error as an EOF error,
-			// and thus simply close the connection.
-			return
-		}
 		if err != nil {
-			fmt.Printf("line: '%s'\n", line)
-			panic(err)
+			if line == "" && err == io.EOF {
+				// The stream has terminated.
+				return
+			}
+
+			fmt.Printf("error: %s (line: %#v)\n", err, line)
+
+			// try again
+			fmt.Println("Trying to reconnect to message channel...")
+			return
 		}
 
 		length, err := strconv.Atoi(line[:len(line)-1])
 		if err != nil {
-			// most likely the YouTube server gives back an error in HTML form
-			buf, err2 := ioutil.ReadAll(reader)
-			if err != nil {
-				panic(err2)
-			}
-			fmt.Printf("Got this while waiting for a new message:\n%s\n\n", line+string(buf))
-
 			panic(err)
 		}
 
@@ -287,7 +295,10 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 		fmt.Println("old command:", message.index, message.command, message.args)
 		return
 	}
-	yt.aid = int32(message.index)
+	yt.aid++
+	if yt.aid != int32(message.index) {
+		panic("missing some messages, message number=" + strconv.Itoa(message.index))
+	}
 
 	if !yt.running {
 		fmt.Println("WARNING: got message after exit:", message.command)
@@ -306,8 +317,6 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 	case "remoteConnected":
 		arguments := message.args[0].(map[string]interface{})
 		fmt.Printf("Remote connected: %s (%s)\n", arguments["name"].(string), arguments["user"].(string))
-		// sometimes the YouTube app doesn't ask for the playlist. This sends the playlist proactively.
-		yt.sendPlaylist()
 	case "remoteDisconnected":
 		arguments := message.args[0].(map[string]interface{})
 		fmt.Printf("Remote disconnected: %s (%s)\n", arguments["name"].(string), arguments["user"].(string))
