@@ -18,6 +18,8 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
+// The YouTube app can play the audio track of YouTube videos, and is designed
+// to be very lightweight (not running Chrome).
 type YouTube struct {
 	friendlyName     string
 	running          bool
@@ -31,7 +33,7 @@ type YouTube struct {
 	outgoingMessages chan outgoingMessage
 }
 
-// JSON data structures for get_lounge_token_batch
+// JSON data structures for get_lounge_token_batch.
 type loungeTokenBatchJson struct {
 	Screens []screenTokenJson "screens"
 }
@@ -41,6 +43,7 @@ type screenTokenJson struct {
 	LoungeToken string "loungeToken"
 }
 
+// JSON data structure for messages received over the message channel.
 type incomingMessagesJson []incomingMessageJson
 type incomingMessageJson []interface{}
 type incomingMessage struct {
@@ -49,17 +52,20 @@ type incomingMessage struct {
 	args    []interface{}
 }
 
+// A single outgoing message, to be fed to the outgoingMessages channel.
 type outgoingMessage struct {
 	command string
 	args    map[string]string
 }
 
+// New returns a new YouTube object (app).
 func New(friendlyName string) *YouTube {
 	yt := YouTube{}
 	yt.friendlyName = friendlyName
 	return &yt
 }
 
+// Start starts the YouTube app asynchronously.
 func (yt *YouTube) Start(postData string) {
 	yt.running = true
 	go yt.run(postData)
@@ -202,6 +208,7 @@ func (yt *YouTube) bind() {
 		yt.handleMessageStream(resp, false)
 
 		if !yt.running {
+			// TODO this is a race condition
 			break
 		}
 	}
