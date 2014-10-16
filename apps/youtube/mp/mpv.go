@@ -1,5 +1,3 @@
-// +build ignore
-
 package mp
 
 // #include <mpv/client.h>
@@ -45,8 +43,7 @@ func (mpv *MPV) initialize() chan State {
 	// The default is a cache size of 25MB, these are somewhat more sensible
 	// cache sizes IMO.
 	mpv.setOptionInt("cache-default", 160)      // 10 seconds
-	mpv.setOptionInt("cache-pause-below", 8)    // ½  second
-	mpv.setOptionInt("cache-pause-restart", 16) // 1  seconds
+	mpv.setOptionInt("cache-seek-min", 16)      // 1 second
 
 	// some extra debugging information, but don't read from stdin
 	mpv.setOptionFlag("terminal", true)
@@ -133,6 +130,8 @@ func (mpv *MPV) getProperty(name string) string {
 
 // setProperty sets the MPV player property
 func (mpv *MPV) setProperty(name, value string) {
+	log.Printf("MPV set property: %s=%s\n", name, value)
+
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
 	cValue := C.CString(value)
@@ -144,11 +143,9 @@ func (mpv *MPV) setProperty(name, value string) {
 
 func (mpv *MPV) play(stream string, position time.Duration) {
 	if position == 0 {
-		mpv.sendCommand([]string{"loadfile", stream, "replace", "pause=no"})
+		mpv.sendCommand([]string{"loadfile", stream, "replace"})
 	} else {
-		mpv.sendCommand([]string{"loadfile", stream, "replace", "pause=yes"})
-		mpv.sendCommand([]string{"seek", fmt.Sprintf("%.3f", position.Seconds()), "absolute"})
-		mpv.setProperty("pause", "no")
+		mpv.sendCommand([]string{"loadfile", stream, "replace", fmt.Sprintf("start=%.3f", position.Seconds())})
 	}
 }
 
@@ -166,6 +163,12 @@ func (mpv *MPV) getPosition() time.Duration {
 		// should never happen
 		panic(err)
 	}
+
+	if position < 0 {
+		// Sometimes, the position appears to be slightly off.
+		position = 0
+	}
+
 	return position
 }
 
