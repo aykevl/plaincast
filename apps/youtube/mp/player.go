@@ -93,7 +93,7 @@ func (p *MediaPlayer) changePlaystate(callback func(*PlayState)) {
 // This function doesn't block, but changes may not be immediately applied.
 func (p *MediaPlayer) SetPlaystate(playlist []string, index int, position time.Duration) {
 	go p.changePlaystate(func(ps *PlayState) {
-		if ps.State == STATE_BUFFERING && ps.bufferingPosition == position && playlist[index] == ps.Playlist[ps.Index] {
+		if ps.State == STATE_BUFFERING && ps.bufferingPosition == position && ps.Index < len(ps.Playlist) && playlist[index] == ps.Playlist[ps.Index] {
 			// just in case something else has changed, update the playlist
 			p.updatePlaylist(ps, playlist)
 			return
@@ -349,13 +349,6 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 				p.setPlayState(&ps, STATE_PAUSED, -1)
 
 			case STATE_STOPPED:
-				if ps.State == STATE_BUFFERING {
-					// Especially VLC may keep sending 'stopped' events
-					// while the next track is already buffering.
-					// Ignore those events.
-					fmt.Println("WARNING: 'stopped' event while buffering")
-					continue
-				}
 				if ps.Index+1 < len(ps.Playlist) {
 					// there are more videos, play the next
 					ps.Index++
