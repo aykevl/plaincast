@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/nu7hatch/gouuid"
@@ -28,7 +27,7 @@ func Serve() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("serving HTTP on port", httpPort)
+	log.Println("serving HTTP on port", httpPort)
 
 	serveSSDP(httpPort)
 }

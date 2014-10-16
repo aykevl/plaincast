@@ -18,6 +18,7 @@ import "unsafe"
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 )
@@ -100,7 +101,7 @@ func (mpv *MPV) setOption(key string, format C.mpv_format, value unsafe.Pointer)
 
 // sendCommand sends a command to the libmpv player
 func (mpv *MPV) sendCommand(command []string) {
-	log("MPV command:", command)
+	log.Println("MPV command:", command)
 
 	cArray := C.makeCharArray(C.int(len(command) + 1))
 	if cArray == nil {
@@ -196,7 +197,7 @@ loop:
 	for {
 		// wait until there is an event (negative timeout means infinite timeout)
 		event := C.mpv_wait_event(mpv.handle, -1)
-		log("MPV event: %s %s (%d)\n", C.GoString(C.mpv_event_name(event.event_id)), int(event.event_id))
+		log.Printf("MPV event: %s (%d)\n", C.GoString(C.mpv_event_name(event.event_id)), int(event.event_id))
 
 		switch event.event_id {
 		case C.MPV_EVENT_SHUTDOWN:

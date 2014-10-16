@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -139,7 +138,7 @@ func (yt *YouTube) connect(pairingCode string) {
 	c := config.Get()
 
 	screenId, err := c.GetString("apps.youtube.screenId", func() (string, error) {
-		fmt.Println("Getting screen_id...")
+		log.Println("Getting screen_id...")
 		buf, err := httpGetBody("https://www.youtube.com/api/lounge/pairing/generate_screen_id")
 		return string(buf), err
 	})
@@ -147,7 +146,7 @@ func (yt *YouTube) connect(pairingCode string) {
 		panic(err)
 	}
 
-	fmt.Println("Getting lounge token batch...")
+	log.Println("Getting lounge token batch...")
 	params := url.Values{
 		"screen_ids": []string{screenId},
 	}
@@ -162,7 +161,7 @@ func (yt *YouTube) connect(pairingCode string) {
 	// there is enough information now to set up the message channel
 	go yt.bind()
 
-	fmt.Println("Register pairing code...")
+	log.Println("Register pairing code...")
 	params = url.Values{
 		"access_type":  []string{"permanent"},
 		"pairing_code": []string{pairingCode},
@@ -175,7 +174,7 @@ func (yt *YouTube) connect(pairingCode string) {
 }
 
 func (yt *YouTube) bind() {
-	fmt.Println("Getting first batch of messages")
+	log.Println("Getting first batch of messages")
 	params := url.Values{
 		"count": []string{"0"},
 	}
@@ -201,25 +200,25 @@ func (yt *YouTube) bind() {
 
 		resp, err = http.Get(bindUrl)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			log.Println("ERROR:", err)
 			yt.Stop()
 			break
 		}
 
 		if resp.StatusCode != 200 {
-			fmt.Fprintln(os.Stderr, "HTTP error while connecting to message channel:", resp.StatusCode)
+			log.Println("HTTP error while connecting to message channel:", resp.StatusCode)
 
 			// most likely the YouTube server gives back an error in HTML form
 			buf, err := ioutil.ReadAll(resp.Body)
 			handle(err, "error while reading error message")
-			fmt.Fprintf(os.Stderr, "Response body:\n%s\n\n", string(buf))
+			log.Printf("Response body:\n%s\n\n", string(buf))
 
 			yt.Stop()
 			break
 		}
 
 		latency := time.Now().Sub(timeBeforeGet) / time.Millisecond * time.Millisecond
-		fmt.Println(time.Now().Format("15:04:05.000"), "Connected to message channel in", latency)
+		log.Println("Connected to message channel in", latency)
 
 		yt.handleMessageStream(resp, false)
 
@@ -243,10 +242,10 @@ func (yt *YouTube) handleMessageStream(resp *http.Response, singleBatch bool) {
 				return
 			}
 
-			fmt.Printf("error: %s (line: %#v)\n", err, line)
+			log.Printf("error: %s (line: %#v)\n", err, line)
 
 			// try again
-			fmt.Println("Trying to reconnect to message channel...")
+			log.Println("Trying to reconnect to message channel...")
 			return
 		}
 
@@ -292,7 +291,7 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) {
 
 func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 	if message.index <= int(yt.aid) {
-		fmt.Println("old command:", message.index, message.command, message.args)
+		log.Println("old command:", message.index, message.command, message.args)
 		return
 	}
 	yt.aid++
@@ -301,11 +300,9 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 	}
 
 	if !yt.running {
-		fmt.Println("WARNING: got message after exit:", message.command)
+		log.Println("WARNING: got message after exit:", message.command)
 		return
 	}
-
-	receiveTime := time.Now()
 
 	switch message.command {
 	case "noop":
@@ -316,10 +313,10 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 		yt.gsessionid = message.args[0].(string)
 	case "remoteConnected":
 		arguments := message.args[0].(map[string]interface{})
-		fmt.Printf("Remote connected: %s (%s)\n", arguments["name"].(string), arguments["user"].(string))
+		log.Printf("Remote connected: %s (%s)\n", arguments["name"].(string), arguments["user"].(string))
 	case "remoteDisconnected":
 		arguments := message.args[0].(map[string]interface{})
-		fmt.Printf("Remote disconnected: %s (%s)\n", arguments["name"].(string), arguments["user"].(string))
+		log.Printf("Remote disconnected: %s (%s)\n", arguments["name"].(string), arguments["user"].(string))
 	case "getVolume":
 		go func() {
 			yt.sendVolume(yt.mp.GetPlaystate().Volume)
@@ -405,12 +402,12 @@ func (yt *YouTube) handleReceivedMessage(message *incomingMessage) {
 	case "stopVideo":
 		yt.mp.Stop()
 	default:
-		fmt.Println("unknown command:", message.index, message.command, message.args)
+		log.Println("unknown command:", message.index, message.command, message.args)
 		return
 	}
 
 	if message.command != "noop" { // ignore verbose no-op
-		fmt.Println(receiveTime.Format("15:04:05.000"), "command:", message.index, message.command, message.args)
+		log.Println("command:", message.index, message.command, message.args)
 	}
 }
 
@@ -462,7 +459,7 @@ func (yt *YouTube) sendMessages() {
 		}
 
 		latency := time.Now().Sub(timeBeforeSend) / time.Millisecond * time.Millisecond
-		fmt.Println(time.Now().Format("15:04:05.000"), "send msg:", latency, message.command, message.args)
+		log.Println("send msg:", latency, message.command, message.args)
 
 		count += 1
 	}

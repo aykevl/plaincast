@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -110,7 +111,7 @@ func (us *UPnPServer) startServing() (int, error) {
 
 // serveDescription serves the UPnP device description
 func (us *UPnPServer) serveDescription(w http.ResponseWriter, req *http.Request) {
-	fmt.Println("http", req.Method, req.URL.Path)
+	log.Println("http", req.Method, req.URL.Path)
 
 	w.Header().Set("Application-URL", fmt.Sprintf("http://%s:%d/apps/", getUrlIP(getLocalAddr(req)), us.httpPort))
 
@@ -139,7 +140,7 @@ func (us *UPnPServer) serveDescription(w http.ResponseWriter, req *http.Request)
 
 // serveApp serves an app description and handles starting/stopping of apps
 func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
-	fmt.Println("http", req.Method, req.URL.Path)
+	log.Println("http", req.Method, req.URL.Path)
 
 	matches := us.appMatchString.FindSubmatch([]byte(req.URL.Path))
 	if matches == nil || len(matches) < 3 {
@@ -224,7 +225,7 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 // serveProxy is a simple proxy that is being used by the mplayer2 player
 // backend, because it doesn't support SSL.
 func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
-	fmt.Println("http", req.Method, req.URL.Path)
+	log.Println("http", req.Method, req.URL.Path)
 
 	path := req.URL.Path
 	if req.URL.RawQuery != "" {
@@ -265,7 +266,7 @@ func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 // serveSilence serves a WAV file of one byte silence
 // This hack is needed for working aroud a VLC bug.
 func (us *UPnPServer) serveSilence(w http.ResponseWriter, req *http.Request) {
-	fmt.Println("http", req.Method, req.URL.Path)
+	log.Println("http", req.Method, req.URL.Path)
 
 	w.Header().Set("Content-Type", "audio/wav")
 	w.Header().Set("Content-Length", "46")

@@ -1,7 +1,7 @@
 package mp
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -140,7 +140,7 @@ func (p *MediaPlayer) getYouTubeStream(videoId string) string {
 
 	youtubeUrl := "https://www.youtube.com/watch?v=" + videoId
 
-	fmt.Println("Fetching YouTube stream...", youtubeUrl)
+	log.Println("Fetching YouTube stream...", youtubeUrl)
 	// First (mkv-container) audio only, then video with audio bitrate 100+
 	// (where video has the lowest possible quality), then slightly lower
 	// quality audio.
@@ -154,7 +154,7 @@ func (p *MediaPlayer) getYouTubeStream(videoId string) string {
 	cmd := exec.Command("youtube-dl", "-g", "-f", "171/172/43/22/18", youtubeUrl)
 	cmd.Stderr = os.Stderr
 	output, err := cmd.Output()
-	fmt.Println("Got stream.")
+	log.Println("Got stream.")
 	if err != nil {
 		panic(err)
 	}
@@ -226,7 +226,7 @@ func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string) {
 	for i, v := range ps.Playlist {
 		if v == videoId {
 			if newIndex >= 0 {
-				fmt.Fprintln(os.Stderr, "WARNING: videoId exists twice in playlist")
+				log.Println("WARNING: videoId exists twice in playlist")
 				break
 			}
 			newIndex = i
@@ -246,7 +246,7 @@ func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string) {
 func (p *MediaPlayer) Pause() {
 	go p.changePlaystate(func(ps *PlayState) {
 		if ps.State != STATE_PLAYING {
-			fmt.Printf("Warning: pause while in state %d\n", ps.State)
+			log.Printf("Warning: pause while in state %d\n", ps.State)
 		}
 
 		p.player.pause()
@@ -263,7 +263,7 @@ func (p *MediaPlayer) Play() {
 			// Restart from the beginning.
 			p.startPlaying(ps, 0)
 		default:
-			fmt.Printf("Warning: resume while in state %d\n", ps.State)
+			log.Printf("Warning: resume while in state %d\n", ps.State)
 		}
 	})
 }
@@ -272,7 +272,7 @@ func (p *MediaPlayer) Play() {
 func (p *MediaPlayer) Seek(position time.Duration) {
 	go p.changePlaystate(func(ps *PlayState) {
 		if ps.State != STATE_PAUSED {
-			fmt.Printf("Warning: state is not paused while seeking (state: %d)\n", ps.State)
+			log.Printf("Warning: state is not paused while seeking (state: %d)\n", ps.State)
 		}
 
 		p.player.setPosition(position)

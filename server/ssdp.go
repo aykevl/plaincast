@@ -3,10 +3,10 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"net/mail"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -64,7 +64,7 @@ func serveSSDP(httpPort int) {
 func serveSSDPResponse(msg *mail.Message, raddr *net.UDPAddr, httpPort int) {
 	mx, err := strconv.Atoi(msg.Header.Get("MX"))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		log.Println(err)
 		return
 	}
 
