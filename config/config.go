@@ -1,15 +1,13 @@
 package config
 
-
 import (
+	"encoding/json"
+	"io/ioutil"
+	"log"
 	"os"
 	"os/user"
-	"log"
-	"io/ioutil"
-	"encoding/json"
 	"path/filepath"
 )
-
 
 type Config struct {
 	data map[string]string
@@ -17,8 +15,8 @@ type Config struct {
 }
 
 var config *Config
-const CONFIG_FILENAME = ".config/plaincast.json"
 
+const CONFIG_FILENAME = ".config/plaincast.json"
 
 // Get returns a global Config instance.
 // It may be called multiple times: the same object will be returned each time.
@@ -56,7 +54,7 @@ func newConfig(path string) *Config {
 	return &c
 }
 
-func (c *Config) GetString(key string, valueCall func () (string, error)) (string, error) {
+func (c *Config) GetString(key string, valueCall func() (string, error)) (string, error) {
 	if value, ok := c.data[key]; ok {
 		return value, nil
 	}
@@ -82,7 +80,7 @@ func (c *Config) save() {
 	handle(err, "could not write config file")
 	handle(f.Close(), "could not close config file")
 
-	handle(os.Rename(c.path + ".tmp", c.path), "could not replace config file")
+	handle(os.Rename(c.path+".tmp", c.path), "could not replace config file")
 }
 
 func handle(err error, message string) {

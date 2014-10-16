@@ -91,7 +91,7 @@ func (yt *YouTube) run(postData string) {
 	yt.rid = rand.Intn(80000) + 10000
 
 	c := config.Get()
-	yt.uuid, err = c.GetString("apps.youtube.uuid", func () (string, error) {
+	yt.uuid, err = c.GetString("apps.youtube.uuid", func() (string, error) {
 		uuid, err := uuid.NewV4()
 		if err != nil {
 			return "", err
