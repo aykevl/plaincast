@@ -1,12 +1,14 @@
 package youtube
 
 import (
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 // zx generates a random string of bytes that is 12 characters long.
@@ -41,6 +43,11 @@ func httpPostFormBody(url string, values url.Values) ([]byte, error) {
 }
 
 func processRequest(resp *http.Response) ([]byte, error) {
+
+	if resp.StatusCode != 200 {
+		return nil, errors.New("unexpected HTTP status code: " + strconv.Itoa(resp.StatusCode))
+	}
+
 	if resp.ContentLength < 0 {
 		return ioutil.ReadAll(resp.Body)
 	} else {
