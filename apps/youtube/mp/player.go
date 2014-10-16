@@ -44,7 +44,6 @@ func (p *MediaPlayer) Quit() {
 		p.player.quit()
 	}()
 
-	// TODO: fix race conditions
 	close(p.stateChange)
 	close(p.volumeChange)
 }
