@@ -42,8 +42,8 @@ func (mpv *MPV) initialize() chan State {
 	// Cache settings assume 128kbps audio stream (16kByte/s).
 	// The default is a cache size of 25MB, these are somewhat more sensible
 	// cache sizes IMO.
-	mpv.setOptionInt("cache-default", 160)      // 10 seconds
-	mpv.setOptionInt("cache-seek-min", 16)      // 1 second
+	mpv.setOptionInt("cache-default", 160) // 10 seconds
+	mpv.setOptionInt("cache-seek-min", 16) // 1 second
 
 	// some extra debugging information, but don't read from stdin
 	mpv.setOptionFlag("terminal", true)
@@ -116,7 +116,8 @@ func (mpv *MPV) sendCommand(command []string) {
 }
 
 // getProperty returns the MPV player property as a string
-// Warning: this function can take an unbounded time. Call inside a new goroutine to prevent blocking / deadlocks.
+// Warning: this function can take an unbounded time. Call inside a new
+// goroutine to prevent blocking / deadlocks.
 func (mpv *MPV) getProperty(name string) string {
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
