@@ -153,7 +153,7 @@ func (p *MediaPlayer) getYouTubeStream(videoId string) string {
 	cmd := exec.Command("youtube-dl", "-g", "-f", "171/172/43/22/18", youtubeUrl)
 	cmd.Stderr = os.Stderr
 	output, err := cmd.Output()
-	log.Println("Got stream.")
+	log.Println("Got stream for", youtubeUrl)
 	if err != nil {
 		panic(err)
 	}
