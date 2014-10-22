@@ -364,6 +364,12 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 				if ps.Index+1 < len(ps.Playlist) {
 					// there are more videos, play the next
 					ps.Index++
+					// p.startPlaying sets the playstate immediately to
+					// buffering (using setPlayState), so it's okay to change it
+					// here. And it is needed, otherwise startPlaying will pause
+					// the currently 'playing' track causing an error in MPV
+					// (nothing is playing, so nothing can be paused).
+					ps.State = STATE_STOPPED
 					p.startPlaying(&ps, 0)
 				} else {
 					// signal that the video has stopped playing

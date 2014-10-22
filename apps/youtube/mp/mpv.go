@@ -139,6 +139,9 @@ func (mpv *MPV) setProperty(name, value string) {
 	defer C.free(unsafe.Pointer(cValue))
 
 	// setProperty can take an unbounded time, don't block here using _async
+	// TODO: use some form of error handling. Sometimes, it is impossible to
+	// know beforehand whether setting a property will cause an error.
+	// Importantly, catch the 'property unavailable' error.
 	mpv.checkError(C.mpv_set_property_async(mpv.handle, 0, cName, C.MPV_FORMAT_STRING, unsafe.Pointer(&cValue)))
 }
 
