@@ -144,9 +144,9 @@ func (mpv *MPV) setProperty(name, value string) {
 
 func (mpv *MPV) play(stream string, position time.Duration) {
 	if position == 0 {
-		mpv.sendCommand([]string{"loadfile", stream, "replace"})
+		mpv.sendCommand([]string{"loadfile", stream, "replace", "pause=no"})
 	} else {
-		mpv.sendCommand([]string{"loadfile", stream, "replace", fmt.Sprintf("start=%.3f", position.Seconds())})
+		mpv.sendCommand([]string{"loadfile", stream, "replace", fmt.Sprintf("pause=no,start=%.3f", position.Seconds())})
 	}
 }
 
