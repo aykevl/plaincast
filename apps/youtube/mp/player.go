@@ -346,9 +346,21 @@ func (p *MediaPlayer) run(playerEventChan chan State) {
 				p.setPlayState(&ps, STATE_PLAYING, -1)
 
 			case STATE_PAUSED:
+				if ps.State == STATE_BUFFERING {
+					// The video has been paused while the stream for the next
+					// video is being loaded.
+					break
+				}
+
 				p.setPlayState(&ps, STATE_PAUSED, -1)
 
 			case STATE_STOPPED:
+				if ps.State == STATE_BUFFERING {
+					// The previous video has stopped on a 'loadfile' command in
+					// MPV. This is expected and should be ignored.
+					break
+				}
+
 				if ps.Index+1 < len(ps.Playlist) {
 					// there are more videos, play the next
 					ps.Index++
