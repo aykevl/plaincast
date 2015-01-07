@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.Ltime)
+	log.SetFlags(log.Ltime | log.Lmicroseconds)
 
 	server.Serve()
 }
