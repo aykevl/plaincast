@@ -106,8 +106,8 @@ func (yt *YouTube) Start(postData string) {
 	go yt.run(postData)
 }
 
-// Stop stops this app if it is running.
-func (yt *YouTube) Stop() {
+// Quit stops this app if it is running.
+func (yt *YouTube) Quit() {
 	// shut down everything about this app
 	yt.runningMutex.Lock()
 	defer yt.runningMutex.Unlock()
@@ -409,7 +409,7 @@ func (yt *YouTube) bind() {
 		resp, err = http.Get(bindUrl)
 		if err != nil {
 			log.Println("ERROR:", err)
-			yt.Stop()
+			yt.Quit()
 			break
 		}
 
@@ -421,7 +421,7 @@ func (yt *YouTube) bind() {
 			handle(err, "error while reading error message")
 			log.Printf("Response body:\n%s\n\n", string(buf))
 
-			yt.Stop()
+			yt.Quit()
 			break
 		}
 

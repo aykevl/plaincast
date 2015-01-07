@@ -160,7 +160,7 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 		if req.Method != "DELETE" {
 			panic("expected delete on '" + req.URL.Path + "', not " + req.Method)
 		}
-		app.Stop()
+		app.Quit()
 		return
 	}
 
