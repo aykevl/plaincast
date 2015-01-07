@@ -5,12 +5,12 @@ import (
 )
 
 type Backend interface {
-	initialize() chan State
+	initialize() (chan State, int)
 	quit()
-	play(string, time.Duration)
+	play(string, time.Duration, int)
 	pause()
 	resume()
-	getPosition() time.Duration
+	getPosition() (time.Duration, error)
 	setPosition(time.Duration)
 	setVolume(int)
 	stop()

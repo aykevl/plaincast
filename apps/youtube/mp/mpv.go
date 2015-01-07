@@ -15,29 +15,50 @@ import "C"
 import "unsafe"
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
+	"sync"
 	"time"
+
+	"github.com/aykevl93/plaincast/config"
 )
+
+var MPV_PROPERTY_UNAVAILABLE = errors.New("mpv: property unavailable")
 
 // MPV is an implementation of Backend, using libmpv.
 type MPV struct {
-	handle *C.mpv_handle
+	handle       *C.mpv_handle
+	running      bool
+	runningMutex sync.Mutex
+	mainloopExit chan struct{}
 }
 
 // New creates a new MPV instance and initializes the libmpv player
-func (mpv *MPV) initialize() chan State {
-	if mpv.handle != nil {
+func (mpv *MPV) initialize() (chan State, int) {
+	if mpv.handle != nil || mpv.running {
 		panic("already initialized")
 	}
 
+	mpv.mainloopExit = make(chan struct{})
+	mpv.running = true
+
 	mpv.handle = C.mpv_create()
+
+	conf := config.Get()
+	initialVolume, err := conf.GetInt("player.mpv.volume", func() (int, error) {
+		return INITIAL_VOLUME, nil
+	})
+	if err != nil {
+		// should not happen
+		log.Fatal(err)
+	}
 
 	mpv.setOptionFlag("no-resume-playback", true)
 	mpv.setOptionFlag("no-video", true)
 	mpv.setOptionString("softvol", "yes")
-	mpv.setOptionInt("volume", INITIAL_VOLUME)
+	mpv.setOptionInt("volume", initialVolume)
 
 	// Cache settings assume 128kbps audio stream (16kByte/s).
 	// The default is a cache size of 25MB, these are somewhat more sensible
@@ -46,7 +67,7 @@ func (mpv *MPV) initialize() chan State {
 	mpv.setOptionInt("cache-seek-min", 16) // 1 second
 
 	// some extra debugging information, but don't read from stdin
-	mpv.setOptionFlag("terminal", true)
+	mpv.setOptionFlag("terminal", false)
 	mpv.setOptionFlag("no-input-terminal", true)
 	mpv.setOptionFlag("quiet", true)
 
@@ -56,12 +77,33 @@ func (mpv *MPV) initialize() chan State {
 
 	go mpv.eventHandler(eventChan)
 
-	return eventChan
+	return eventChan, initialVolume
 }
 
-// Quit quits the player
+// Function quit quits the player.
+// WARNING: This MUST be the last call on this media player.
 func (mpv *MPV) quit() {
-	mpv.sendCommand([]string{"quit"})
+	mpv.runningMutex.Lock()
+	if !mpv.running {
+		panic("quit called twice")
+	}
+	mpv.running = false
+	mpv.runningMutex.Unlock()
+
+	// Wake up the event handler mainloop, probably sending the MPV_EVENT_NONE
+	// signal.
+	// See mpv_wait_event below: this doesn't work yet (it uses a workaround
+	// now).
+	//C.mpv_wakeup(handle)
+
+	// Wait until the mainloop has exited.
+	<-mpv.mainloopExit
+
+	// Actually destroy the MPV player. This blocks until the player has been
+	// fully brought down.
+	handle := mpv.handle
+	mpv.handle = nil // make it easier to catch race conditions
+	C.mpv_terminate_destroy(handle)
 }
 
 // setOptionFlag passes a boolean flag to mpv
@@ -118,15 +160,21 @@ func (mpv *MPV) sendCommand(command []string) {
 // getProperty returns the MPV player property as a string
 // Warning: this function can take an unbounded time. Call inside a new
 // goroutine to prevent blocking / deadlocks.
-func (mpv *MPV) getProperty(name string) string {
+func (mpv *MPV) getProperty(name string) (float64, error) {
+	log.Printf("MPV get property: %s\n", name)
+
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
 
-	var cValue *C.char
-	mpv.checkError(C.mpv_get_property(mpv.handle, cName, C.MPV_FORMAT_STRING, unsafe.Pointer(&cValue)))
-	defer C.mpv_free(unsafe.Pointer(cValue))
+	var cValue C.double
+	status := C.mpv_get_property(mpv.handle, cName, C.MPV_FORMAT_DOUBLE, unsafe.Pointer(&cValue))
+	if status == C.MPV_ERROR_PROPERTY_UNAVAILABLE {
+		return 0, MPV_PROPERTY_UNAVAILABLE
+	} else if status != 0 {
+		return 0, errors.New("mpv: " + C.GoString(C.mpv_error_string(status)))
+	}
 
-	return C.GoString(cValue)
+	return float64(cValue), nil
 }
 
 // setProperty sets the MPV player property
@@ -142,15 +190,21 @@ func (mpv *MPV) setProperty(name, value string) {
 	// TODO: use some form of error handling. Sometimes, it is impossible to
 	// know beforehand whether setting a property will cause an error.
 	// Importantly, catch the 'property unavailable' error.
-	mpv.checkError(C.mpv_set_property_async(mpv.handle, 0, cName, C.MPV_FORMAT_STRING, unsafe.Pointer(&cValue)))
+	mpv.checkError(C.mpv_set_property_async(mpv.handle, 1, cName, C.MPV_FORMAT_STRING, unsafe.Pointer(&cValue)))
 }
 
-func (mpv *MPV) play(stream string, position time.Duration) {
-	if position == 0 {
-		mpv.sendCommand([]string{"loadfile", stream, "replace", "pause=no"})
-	} else {
-		mpv.sendCommand([]string{"loadfile", stream, "replace", fmt.Sprintf("pause=no,start=%.3f", position.Seconds())})
+func (mpv *MPV) play(stream string, position time.Duration, volume int) {
+	options := "pause=no"
+
+	if position != 0 {
+		options += fmt.Sprintf(",start=%.3f", position.Seconds())
 	}
+
+	if volume >= 0 {
+		options += fmt.Sprintf(",volume=%d", volume)
+	}
+
+	mpv.sendCommand([]string{"loadfile", stream, "replace", options})
 }
 
 func (mpv *MPV) pause() {
@@ -161,10 +215,12 @@ func (mpv *MPV) resume() {
 	mpv.setProperty("pause", "no")
 }
 
-func (mpv *MPV) getPosition() time.Duration {
-	position, err := time.ParseDuration(mpv.getProperty("time-pos") + "s")
-	if err != nil {
-		// should never happen
+func (mpv *MPV) getPosition() (time.Duration, error) {
+	position, err := mpv.getProperty("time-pos")
+	if err == MPV_PROPERTY_UNAVAILABLE {
+		return 0, PROPERTY_UNAVAILABLE
+	} else if err != nil {
+		// should not happen
 		panic(err)
 	}
 
@@ -173,7 +229,7 @@ func (mpv *MPV) getPosition() time.Duration {
 		position = 0
 	}
 
-	return position
+	return time.Duration(position * float64(time.Second)), nil
 }
 
 func (mpv *MPV) setPosition(position time.Duration) {
@@ -181,9 +237,9 @@ func (mpv *MPV) setPosition(position time.Duration) {
 }
 
 func (mpv *MPV) getVolume() int {
-	volume, err := strconv.ParseFloat(mpv.getProperty("volume"), 64)
+	volume, err := mpv.getProperty("volume")
 	if err != nil {
-		// should never happen
+		// should not happen
 		panic(err)
 	}
 
@@ -192,6 +248,9 @@ func (mpv *MPV) getVolume() int {
 
 func (mpv *MPV) setVolume(volume int) {
 	mpv.setProperty("volume", strconv.Itoa(volume))
+	// TODO make config setting non-blocking.
+	// Currently, this is a small race condition.
+	go config.Get().SetInt("player.mpv.volume", volume)
 }
 
 func (mpv *MPV) stop() {
@@ -200,17 +259,34 @@ func (mpv *MPV) stop() {
 
 // playerEventHandler waits for libmpv player events and sends them on a channel
 func (mpv *MPV) eventHandler(eventChan chan State) {
-loop:
 	for {
 		// wait until there is an event (negative timeout means infinite timeout)
-		event := C.mpv_wait_event(mpv.handle, -1)
-		log.Printf("MPV event: %s (%d)\n", C.GoString(C.mpv_event_name(event.event_id)), int(event.event_id))
+		// The timeout is 1 second to work around libmpv bug #1372 (mpv_wakeup
+		// does not actually wake up mpv_wait_event). It keeps checking every
+		// second whether MPV has exited.
+		// TODO revert this as soon as the fix for that bug lands in a stable
+		// release. Check for the problematic versions and keep the old behavior
+		// for older MPV versions.
+		event := C.mpv_wait_event(mpv.handle, 1)
+		if event.event_id != C.MPV_EVENT_NONE {
+			log.Printf("MPV event: %s (%d)\n", C.GoString(C.mpv_event_name(event.event_id)), int(event.event_id))
+		}
+
+		if event.error != 0 {
+			panic("MPV API error")
+		}
+
+		mpv.runningMutex.Lock()
+		running := mpv.running
+		mpv.runningMutex.Unlock()
+
+		if !running {
+			close(eventChan)
+			mpv.mainloopExit <- struct{}{}
+			return
+		}
 
 		switch event.event_id {
-		case C.MPV_EVENT_SHUTDOWN:
-			close(eventChan)
-			mpv.handle = nil
-			break loop
 		case C.MPV_EVENT_PLAYBACK_RESTART:
 			eventChan <- STATE_PLAYING
 		case C.MPV_EVENT_END_FILE:

@@ -20,20 +20,41 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
+// # Preventing race conditions & leaks
+//
+// There were a *lot* race conditions, but most have been fixed by now, using a
+// new design. Many race conditions were triggered when Stop() was called.
+// Stop() will hold a mutex for the `running` variable. As will the part
+// receiving messages. As soon as Stop() is called, no more new messages will be
+// received and run() will be stopped using a separate channel (`runQuit`).
+// The overall exiting order looks like this:
+//     Stop() + bind() -> run() -> backend (via player) -> player -> playerEvents -> outgoingMessages
+//
+// These are also all goroutines that will exist (a few possible exceptions
+// aside that will manage their lifetime themselves).
+// The player will ensure proper synchronisation so it won't call more than one
+// method on the backend at any time, thus backend.Quit() will also be
+// synchronous. Then it will close the main playerEvents channel to signal to
+// playerEvents no more signals will be sent.
+
 // The YouTube app can play the audio track of YouTube videos, and is designed
 // to be very lightweight (not running Chrome).
 type YouTube struct {
-	friendlyName     string
-	running          bool
-	runningMutex     sync.Mutex
+	friendlyName string
+	running      bool
+	runningMutex sync.Mutex
+	// TODO split everything under here into a separate struct, so re-running
+	// the app won't clash with the previous run.
 	rid              chan int // sends random numbers for outgoing messages
 	ridQuit          chan struct{}
+	runQuit          chan struct{}
 	uuid             string
 	loungeToken      string
 	sid              string
 	gsessionid       string
 	aid              int32 // int32 is thread-safe on ARM and Intel processors
 	mp               *mp.MediaPlayer
+	mpMutex          sync.Mutex // to quit the player safely
 	incomingMessages chan incomingMessage
 	outgoingMessages chan outgoingMessage
 }
@@ -67,6 +88,7 @@ type outgoingMessage struct {
 func New(friendlyName string) *YouTube {
 	yt := YouTube{}
 	yt.friendlyName = friendlyName
+	yt.runQuit = make(chan struct{})
 	return &yt
 }
 
@@ -95,18 +117,11 @@ func (yt *YouTube) Stop() {
 	}
 	yt.running = false
 
-	// WARNING: not thread-safe (some goroutines may still be busy with the
-	// media player, or the media player may not have fully started).
-	yt.mp.Quit()
-	yt.mp = nil
-
-	// TODO this may panic if there are still goroutines sending on this channel
-	close(yt.outgoingMessages)
-
+	yt.runQuit <- struct{}{}
 	yt.ridQuit <- struct{}{}
 }
 
-func (yt *YouTube) init(postData string, stateChange chan mp.StateChange, volumeChange chan int) {
+func (yt *YouTube) init(postData string, stateChange chan mp.StateChange) {
 	var err error
 
 	yt.rid, yt.ridQuit = yt.ridIterator()
@@ -126,12 +141,17 @@ func (yt *YouTube) init(postData string, stateChange chan mp.StateChange, volume
 	yt.outgoingMessages = make(chan outgoingMessage, 5)
 	yt.aid = -1
 
-	yt.mp = mp.New(stateChange, volumeChange)
-
 	values, err := url.ParseQuery(postData)
 	if err != nil {
 		panic(err)
 	}
+
+	// This is a goroutine that starts two other goroutines: one that receives
+	// messages from YouTube and the other that sends all messages to YouTube.
+	// It exits after the message channel has been successfully set up.
+	go yt.connect(values["pairingCode"][0])
+
+	yt.mp = mp.New(stateChange)
 
 	video, ok := values["v"]
 	if ok && len(video[0]) > 0 {
@@ -144,31 +164,37 @@ func (yt *YouTube) init(postData string, stateChange chan mp.StateChange, volume
 
 		yt.mp.SetPlaystate([]string{videoId}, 0, position)
 	}
-
-	go yt.connect(values["pairingCode"][0])
 }
 
 func (yt *YouTube) run(postData string) {
 	log.Println("running YouTube:", postData)
 
 	stateChange := make(chan mp.StateChange)
-	volumeChange := make(chan int)
+	volumeChan := make(chan int)
+	playlistChan := make(chan mp.PlaylistState)
+	nowPlayingChan := make(chan mp.PlaylistState, 1)
+	// nowPlayingChan will ask for a signal inside playerEvents.
 
-	yt.init(postData, stateChange, volumeChange)
+	// This goroutine handles all signals coming from the media player.
+	go yt.playerEvents(stateChange, volumeChan, playlistChan, nowPlayingChan)
+
+	yt.init(postData, stateChange)
 
 	for {
-	selectStmt:
 		select {
 		case message := <-yt.incomingMessages:
+			log.Println("command:", message.index, message.command, message.args)
+
 			switch message.command {
 			case "remoteConnected":
 				log.Printf("Remote connected: %s (%s)\n", message.args["name"], message.args["user"])
 			case "remoteDisconnected":
 				log.Printf("Remote disconnected: %s (%s)\n", message.args["name"], message.args["user"])
+			case "loungeStatus":
+				// pass
+				break
 			case "getVolume":
-				go func() {
-					yt.sendVolume(yt.mp.GetPlaystate().Volume)
-				}()
+				yt.mp.RequestVolume(volumeChan)
 			case "setVolume":
 				delta, ok := message.args["delta"]
 				if ok {
@@ -177,21 +203,17 @@ func (yt *YouTube) run(postData string) {
 						log.Println("WARNING: volume delta could not be parsed:", err)
 						break
 					}
-					go func() {
-						volumeChan := yt.mp.ChangeVolume(delta)
-						yt.sendVolume(<-volumeChan)
-					}()
+					yt.mp.ChangeVolume(delta, volumeChan)
 				} else {
 					volume, err := strconv.Atoi(message.args["volume"])
 					if err != nil {
 						log.Println("WARNING: volume could not be parsed:", err)
 						break
 					}
-					yt.mp.SetVolume(volume)
-					yt.sendVolume(volume)
+					yt.mp.SetVolume(volume, volumeChan)
 				}
 			case "getPlaylist":
-				yt.sendPlaylist()
+				yt.mp.RequestPlaylist(playlistChan)
 			case "setPlaylist":
 				playlist := strings.Split(message.args["videoIds"], ",")
 
@@ -207,10 +229,15 @@ func (yt *YouTube) run(postData string) {
 					break
 				}
 
-				go yt.mp.SetPlaystate(playlist, index, position)
+				if index < 0 || len(playlist) == 0 || index >= len(playlist) {
+					log.Println("WARNING: setPlaylist got invalid parameters")
+					break
+				}
+
+				yt.mp.SetPlaystate(playlist, index, position)
 			case "updatePlaylist":
 				playlist := strings.Split(message.args["videoIds"], ",")
-				go yt.mp.UpdatePlaylist(playlist)
+				yt.mp.UpdatePlaylist(playlist)
 			case "setVideo":
 				videoId := message.args["videoId"]
 				position, err := time.ParseDuration(message.args["currentTime"] + "s")
@@ -221,18 +248,21 @@ func (yt *YouTube) run(postData string) {
 
 				yt.mp.SetVideo(videoId, position)
 			case "getNowPlaying":
-				yt.sendNowPlaying()
+				yt.mp.RequestPlaylist(nowPlayingChan)
 			case "getSubtitlesTrack":
-				go func() {
-					ps := yt.mp.GetPlaystate()
-					videoId := ""
-					if len(ps.Playlist) > 0 {
-						videoId = ps.Playlist[ps.Index]
-					}
-					// this appears to be the right way, but I'm not sure it should send this message as there
-					// are obviously no subtitles when there is no screen
-					yt.outgoingMessages <- outgoingMessage{"onSubtitlesTrackChanged", map[string]string{"videoId": videoId}}
-				}()
+				// Just send out an empty message. It looks like the Android
+				// YouTube client doesn't care too much about this message
+				// anyway. Usually `getSubtitlesTrack` is only sent on
+				// connection, and not asked (or sent) when switching videos,
+				// which is kinda odd to me. When a video is playing while this
+				// message is sent, the videoId is sent with it, and some other
+				// stuff like `languageCode` to indicate the currently playing
+				// subtitles track. Again, this is not updated when the video
+				// changes.
+				// No subtitles are visible anyway on a headless Chromecast
+				// installation, and the Android client doesn't seem to change
+				// it's behavior much when leaving out this message.
+				yt.outgoingMessages <- outgoingMessage{"onSubtitlesTrackChanged", map[string]string{"videoId": ""}}
 			case "pause":
 				yt.mp.Pause()
 			case "play":
@@ -246,21 +276,56 @@ func (yt *YouTube) run(postData string) {
 				yt.mp.Seek(position)
 			case "stopVideo":
 				yt.mp.Stop()
-			default:
-				log.Println("unknown command:", message.index, message.command, message.args)
-				break selectStmt
 			}
 
-			log.Println("command:", message.index, message.command, message.args)
+		case <-yt.runQuit:
+			// The YouTube app has been stopped.
 
-		case change := <-stateChange:
+			yt.mpMutex.Lock()
+			yt.mp.Quit()
+			yt.mp = nil
+			yt.mpMutex.Unlock()
+
+			return
+		}
+	}
+}
+
+func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan int, playlistChan, nowPlayingChan chan mp.PlaylistState) {
+	for {
+		select {
+		case change, ok := <-stateChange:
+			if !ok {
+				// player has quit
+				close(yt.outgoingMessages)
+				return
+			}
 			if change.State == mp.STATE_BUFFERING || change.State == mp.STATE_STOPPED {
-				yt.sendNowPlaying()
+				// Only access yt.mp when it is certain it isn't being quit.
+				// yt.mp is nil when it is being stopped.
+				yt.mpMutex.Lock()
+				if yt.mp != nil {
+					yt.mp.RequestPlaylist(nowPlayingChan)
+				}
+				yt.mpMutex.Unlock()
 			}
 			yt.outgoingMessages <- outgoingMessage{"onStateChange", map[string]string{"currentTime": strconv.FormatFloat(change.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(change.State))}}
 
-		case volume := <-volumeChange:
-			yt.sendVolume(volume)
+		case volume := <-volumeChan:
+			yt.outgoingMessages <- outgoingMessage{"onVolumeChanged", map[string]string{"volume": strconv.Itoa(volume), "muted": "false"}}
+
+		case ps := <-playlistChan:
+			if len(ps.Playlist) > 0 {
+				yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{"video_ids": strings.Join(ps.Playlist, ","), "video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
+			} else {
+				yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{}}
+			}
+		case ps := <-nowPlayingChan:
+			if len(ps.Playlist) > 0 {
+				yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{"video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
+			} else {
+				yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{}}
+			}
 		}
 	}
 }
@@ -295,9 +360,12 @@ func (yt *YouTube) connect(pairingCode string) {
 	json.Unmarshal(data, &loungeTokenBatch)
 	yt.loungeToken = loungeTokenBatch.Screens[0].LoungeToken
 
-	// there is enough information now to set up the message channel
+	// Start sending/receiving channel.
+	// There should now be enough information.
 	go yt.bind()
 
+	// Register the pairing code: that can be done after sending and receiving
+	// message channels have been set up.
 	log.Println("Register pairing code...")
 	params = url.Values{
 		"access_type":  []string{"permanent"},
@@ -444,6 +512,10 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 	case "noop":
 		// no-op, ignore
 	case "c":
+		if len(args) == 0 {
+			log.Println("WARNING: no argument")
+			break
+		}
 		sid, ok := args[0].(string)
 		if !ok {
 			log.Println("WARNING: SID does not have the right type")
@@ -451,6 +523,10 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 			yt.sid = sid
 		}
 	case "S":
+		if len(args) == 0 {
+			log.Println("WARNING: no argument")
+			break
+		}
 		gsessionid, ok := args[0].(string)
 		if !ok {
 			log.Println("WARNING: gsessionid does not have the right type")
@@ -459,6 +535,7 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 		}
 	default:
 		if len(args) > 0 {
+			// convert map[string]interface{} into map[string]string
 			argsMap, ok := args[0].(map[string]interface{})
 			if !ok {
 				log.Println("WARNING: message values are not a map", message.command)
@@ -475,32 +552,6 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 	}
 
 	return false
-}
-
-func (yt *YouTube) sendVolume(volume int) {
-	yt.outgoingMessages <- outgoingMessage{"onVolumeChanged", map[string]string{"volume": strconv.Itoa(volume), "muted": "false"}}
-}
-
-func (yt *YouTube) sendPlaylist() {
-	go func() {
-		ps := yt.mp.GetPlaystate()
-		if len(ps.Playlist) > 0 {
-			yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{"video_ids": strings.Join(ps.Playlist, ","), "video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(yt.mp.GetPosition().Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
-		} else {
-			yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{}}
-		}
-	}()
-}
-
-func (yt *YouTube) sendNowPlaying() {
-	go func() {
-		ps := yt.mp.GetPlaystate()
-		if len(ps.Playlist) > 0 {
-			yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{"video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(yt.mp.GetPosition().Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
-		} else {
-			yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{}}
-		}
-	}()
 }
 
 func (yt *YouTube) sendMessages() {

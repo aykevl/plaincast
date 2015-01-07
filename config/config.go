@@ -2,15 +2,18 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
 	"path/filepath"
+	"sync"
 )
 
 type Config struct {
-	data map[string]string
+	sync.Mutex
+	data map[string]interface{}
 	path string
 }
 
@@ -38,7 +41,7 @@ func Get() *Config {
 
 func newConfig(path string) *Config {
 	c := Config{}
-	c.data = make(map[string]string)
+	c.data = make(map[string]interface{})
 	c.path = path
 
 	if _, err := os.Stat(c.path); !os.IsNotExist(err) {
@@ -55,22 +58,62 @@ func newConfig(path string) *Config {
 }
 
 func (c *Config) GetString(key string, valueCall func() (string, error)) (string, error) {
+	c.Lock()
+	defer c.Unlock()
+
 	if value, ok := c.data[key]; ok {
-		return value, nil
+		if svalue, ok := value.(string); ok {
+			return svalue, nil
+		} else {
+			return "", errors.New("config value for key " + key + " is not a string")
+		}
 	}
 
 	value, err := valueCall()
 	if err != nil {
 		return "", err
 	}
-	c.data[key] = value
 
+	c.data[key] = value
 	c.save()
 
 	return value, nil
 }
 
+func (c *Config) GetInt(key string, valueCall func() (int, error)) (int, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	if value, ok := c.data[key]; ok {
+		if svalue, ok := value.(float64); ok {
+			return int(svalue), nil
+		} else {
+			return 0, errors.New("config value for key " + key + " is not an int")
+		}
+	}
+
+	value, err := valueCall()
+	if err != nil {
+		return 0, err
+	}
+
+	c.data[key] = float64(value)
+	c.save()
+
+	return value, err
+}
+
+func (c *Config) SetInt(key string, value int) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.data[key] = float64(value)
+	c.save()
+}
+
 func (c *Config) save() {
+	// TODO do saving asynchronously
+
 	data, err := json.MarshalIndent(&c.data, "", "\t")
 	handle(err, "could not serialize config data")
 
