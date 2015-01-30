@@ -57,6 +57,7 @@ type YouTube struct {
 	mpMutex          sync.Mutex // to quit the player safely
 	incomingMessages chan incomingMessage
 	outgoingMessages chan outgoingMessage
+	pairingCodes     chan string
 }
 
 // JSON data structures for get_lounge_token_batch.
@@ -97,17 +98,24 @@ func (yt *YouTube) FriendlyName() string {
 }
 
 // Start starts the YouTube app asynchronously.
-// Does nothing when the app has already started.
+// Attaches a new device if the app has already started.
 func (yt *YouTube) Start(postData string) {
 	yt.runningMutex.Lock()
 	defer yt.runningMutex.Unlock()
 
-	if yt.running {
-		return
+	arguments, err := url.ParseQuery(postData)
+	// TODO proper error handling
+	if err != nil {
+		panic(err)
 	}
-	yt.running = true
 
-	go yt.run(postData)
+	if yt.running {
+		// Only use `pairingCode`, ignore `v` and `t` arguments.
+		yt.pairingCodes <- arguments["pairingCode"][0]
+
+	} else {
+		yt.start(arguments)
+	}
 }
 
 // Quit stops this app if it is running.
@@ -125,7 +133,7 @@ func (yt *YouTube) Quit() {
 	yt.ridQuit <- struct{}{}
 }
 
-func (yt *YouTube) init(postData string, stateChange chan mp.StateChange) {
+func (yt *YouTube) init(arguments url.Values, stateChange chan mp.StateChange) {
 	var err error
 
 	yt.rid, yt.ridQuit = yt.ridIterator()
@@ -145,23 +153,18 @@ func (yt *YouTube) init(postData string, stateChange chan mp.StateChange) {
 	yt.outgoingMessages = make(chan outgoingMessage, 5)
 	yt.aid = -1
 
-	values, err := url.ParseQuery(postData)
-	if err != nil {
-		panic(err)
-	}
-
 	// This is a goroutine that starts two other goroutines: one that receives
 	// messages from YouTube and the other that sends all messages to YouTube.
 	// It exits after the message channel has been successfully set up.
-	go yt.connect(values["pairingCode"][0])
+	go yt.connect(arguments["pairingCode"][0])
 
 	yt.mp = mp.New(stateChange)
 
-	video, ok := values["v"]
+	video, ok := arguments["v"]
 	if ok && len(video[0]) > 0 {
 		videoId := video[0]
 
-		position, err := time.ParseDuration(values["t"][0] + "s")
+		position, err := time.ParseDuration(arguments["t"][0] + "s")
 		if err != nil {
 			panic(err)
 		}
@@ -170,8 +173,17 @@ func (yt *YouTube) init(postData string, stateChange chan mp.StateChange) {
 	}
 }
 
-func (yt *YouTube) run(postData string) {
-	log.Println("running YouTube:", postData)
+func (yt *YouTube) start(arguments url.Values) {
+	yt.running = true
+	// Of all values, this one should not be initialized inside a goroutine
+	// because that's a race condition.
+	yt.pairingCodes = make(chan string)
+
+	go yt.run(arguments)
+}
+
+func (yt *YouTube) run(arguments url.Values) {
+	log.Println("running YouTube")
 
 	stateChange := make(chan mp.StateChange)
 	volumeChan := make(chan int)
@@ -182,7 +194,7 @@ func (yt *YouTube) run(postData string) {
 	// This goroutine handles all signals coming from the media player.
 	go yt.playerEvents(stateChange, volumeChan, playlistChan, nowPlayingChan)
 
-	yt.init(postData, stateChange)
+	yt.init(arguments, stateChange)
 
 	for {
 		select {
@@ -341,45 +353,37 @@ func (yt *YouTube) Running() bool {
 }
 
 func (yt *YouTube) connect(pairingCode string) {
-	c := config.Get()
-
-	screenId, err := c.GetString("apps.youtube.screenId", func() (string, error) {
-		log.Println("Getting screen_id...")
-		buf, err := httpGetBody("https://www.youtube.com/api/lounge/pairing/generate_screen_id")
-		return string(buf), err
-	})
-	if err != nil {
-		panic(err)
-	}
-
 	log.Println("Getting lounge token batch...")
 	params := url.Values{
-		"screen_ids": []string{screenId},
+		"screen_ids": []string{yt.getScreenId()},
 	}
-	data, err := httpPostFormBody("https://www.youtube.com/api/lounge/pairing/get_lounge_token_batch", params)
+	response, err := httpPostFormBody("https://www.youtube.com/api/lounge/pairing/get_lounge_token_batch", params)
 	if err != nil {
 		panic(err)
 	}
 	loungeTokenBatch := loungeTokenBatchJson{}
-	json.Unmarshal(data, &loungeTokenBatch)
+	json.Unmarshal(response, &loungeTokenBatch)
 	yt.loungeToken = loungeTokenBatch.Screens[0].LoungeToken
 
 	// Start sending/receiving channel.
 	// There should now be enough information.
 	go yt.bind()
 
-	// Register the pairing code: that can be done after sending and receiving
-	// message channels have been set up.
-	log.Println("Register pairing code...")
-	params = url.Values{
-		"access_type":  []string{"permanent"},
-		"pairing_code": []string{pairingCode},
-		"screen_id":    []string{screenId},
-	}
-	_, err = httpPostFormBody("https://www.youtube.com/api/lounge/pairing/register_pairing_code", params)
+	yt.pairingCodes <- pairingCode
+}
+
+func (yt *YouTube) getScreenId() string {
+	screenId, err := config.Get().GetString("apps.youtube.screenId", func() (string, error) {
+		log.Println("Getting screen_id...")
+		response, err := httpGetBody("https://www.youtube.com/api/lounge/pairing/generate_screen_id")
+		return string(response), err
+	})
 	if err != nil {
+		// TODO use proper error handling
 		panic(err)
 	}
+
+	return screenId
 }
 
 func (yt *YouTube) bind() {
@@ -560,29 +564,49 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 
 func (yt *YouTube) sendMessages() {
 	count := 0
-	for message := range yt.outgoingMessages {
-		// TODO collect multiple messages to send them in one batch
-		values := url.Values{
-			"count":    []string{"1"},
-			"ofs":      []string{strconv.Itoa(count)},
-			"req0__sc": []string{message.command},
+	for {
+		select {
+		case message, ok := <-yt.outgoingMessages:
+			if !ok {
+				// This is the sign the sendMessages goroutine should quit.
+				return
+			}
+			values := url.Values{
+				"count":    []string{"1"},
+				"ofs":      []string{strconv.Itoa(count)},
+				"req0__sc": []string{message.command},
+			}
+			for k, v := range message.args {
+				values.Set("req0_"+k, v)
+			}
+
+			timeBeforeSend := time.Now()
+
+			_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
+				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, <-yt.rid, yt.aid, yt.gsessionid, zx()), values)
+			if err != nil {
+				panic(err)
+			}
+
+			latency := time.Now().Sub(timeBeforeSend) / time.Millisecond * time.Millisecond
+			log.Println("send msg:", latency, message.command, message.args)
+
+			count += 1
+
+		case pairingCode := <-yt.pairingCodes:
+			// Register the pairing code: that can be done after sending and
+			// receiving message channels have been set up.
+			log.Println("Registering pairing code...")
+			params := url.Values{
+				"access_type":  []string{"permanent"},
+				"pairing_code": []string{pairingCode},
+				"screen_id":    []string{yt.getScreenId()},
+			}
+			_, err := httpPostFormBody("https://www.youtube.com/api/lounge/pairing/register_pairing_code", params)
+			if err != nil {
+				log.Println("WARNING: could not register pairing code:", err)
+			}
 		}
-		for k, v := range message.args {
-			values.Set("req0_"+k, v)
-		}
-
-		timeBeforeSend := time.Now()
-
-		_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
-			yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, <-yt.rid, yt.aid, yt.gsessionid, zx()), values)
-		if err != nil {
-			panic(err)
-		}
-
-		latency := time.Now().Sub(timeBeforeSend) / time.Millisecond * time.Millisecond
-		log.Println("send msg:", latency, message.command, message.args)
-
-		count += 1
 	}
 }
 
