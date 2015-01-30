@@ -40,7 +40,7 @@ import (
 // The YouTube app can play the audio track of YouTube videos, and is designed
 // to be very lightweight (not running Chrome).
 type YouTube struct {
-	friendlyName string
+	systemName   string
 	running      bool
 	runningMutex sync.Mutex
 	// TODO split everything under here into a separate struct, so re-running
@@ -85,11 +85,15 @@ type outgoingMessage struct {
 }
 
 // New returns a new YouTube object (app).
-func New(friendlyName string) *YouTube {
+func New(systemName string) *YouTube {
 	yt := YouTube{}
-	yt.friendlyName = friendlyName
+	yt.systemName = systemName
 	yt.runQuit = make(chan struct{})
 	return &yt
+}
+
+func (yt *YouTube) FriendlyName() string {
+	return "YouTube"
 }
 
 // Start starts the YouTube app asynchronously.
@@ -385,7 +389,7 @@ func (yt *YouTube) bind() {
 	}
 	// TODO more fields should be query-escaped
 	bindUrl := fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=%d&zx=%s",
-		yt.uuid, url.QueryEscape(yt.friendlyName), yt.loungeToken, <-yt.rid, zx())
+		yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, <-yt.rid, zx())
 	resp, err := http.PostForm(bindUrl, params)
 	if err != nil {
 		panic(err)
@@ -402,7 +406,7 @@ func (yt *YouTube) bind() {
 	go yt.sendMessages()
 
 	for {
-		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=rpc&SID=%s&CI=0&AID=%d&gsessionid=%s&TYPE=xmlhttp&zx=%s", yt.uuid, url.QueryEscape(yt.friendlyName), yt.loungeToken, yt.sid, yt.aid, yt.gsessionid, zx())
+		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=rpc&SID=%s&CI=0&AID=%d&gsessionid=%s&TYPE=xmlhttp&zx=%s", yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, yt.aid, yt.gsessionid, zx())
 
 		timeBeforeGet := time.Now()
 
@@ -570,7 +574,7 @@ func (yt *YouTube) sendMessages() {
 		timeBeforeSend := time.Now()
 
 		_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
-			yt.uuid, url.QueryEscape(yt.friendlyName), yt.loungeToken, yt.sid, <-yt.rid, yt.aid, yt.gsessionid, zx()), values)
+			yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, <-yt.rid, yt.aid, yt.gsessionid, zx()), values)
 		if err != nil {
 			panic(err)
 		}

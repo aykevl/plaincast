@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"text/template"
 
@@ -59,9 +60,28 @@ const APP_RESPONSE = `<?xml version="1.0" encoding="UTF-8"?>
 </service>
 `
 
+const HOME_TEMPLATE = `<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>{{.Title}}server</title>
+<meta name="viewport" content="width=device-width; initial-scale=1"/>
+</head>
+<body>
+<h1>{{.Title}}</h1>
+Apps:
+<ul>
+{{range .Apps}}
+	<li>{{.Name}} {{if .Running}}(running){{end}}</li>
+{{end}}
+</ul>
+</body>
+</html>
+`
+
 type UPnPServer struct {
 	descriptionTemplate *template.Template
 	appStateTemplate    *template.Template
+	homeTemplate        *template.Template
 	httpPort            int
 	apps                map[string]apps.App
 	friendlyName        string
@@ -90,6 +110,7 @@ func NewUPnPServer() *UPnPServer {
 	http.HandleFunc("/apps/", us.serveApp)
 	http.HandleFunc("/proxy/", us.serveProxy)
 	http.HandleFunc("/hacks/silence.wav", us.serveSilence)
+	http.HandleFunc("/", us.serveHome)
 
 	return us
 }
@@ -107,6 +128,52 @@ func (us *UPnPServer) startServing() (int, error) {
 	us.httpPort = httpPort
 
 	return us.httpPort, nil
+}
+
+func (us *UPnPServer) serveHome(w http.ResponseWriter, req *http.Request) {
+	log.Println("http", req.Method, req.URL.Path)
+
+	if req.URL.Path != "/" {
+		http.NotFound(w, req)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/xhtml+xml; charset=utf-8")
+
+	if us.homeTemplate == nil {
+		tmpl, err := template.New("").Parse(HOME_TEMPLATE)
+		if err != nil {
+			// this shouldn't happen
+			panic(err)
+		}
+		us.homeTemplate = tmpl
+	}
+
+	appNames := make([]string, len(us.apps))
+	i := 0
+	for name, _ := range us.apps {
+		appNames[i] = name
+		i++
+	}
+	sort.Strings(appNames)
+
+	apps := make([]struct {
+		Name    string
+		Running bool
+	}, len(us.apps))
+	for i, name := range appNames {
+		apps[i].Name = us.apps[name].FriendlyName()
+		apps[i].Running = us.apps[name].Running()
+	}
+
+	err := us.homeTemplate.Execute(w, map[string]interface{}{
+		"Title": us.friendlyName,
+		"Apps":  apps,
+	})
+	if err != nil {
+		// this shouldn't happen
+		panic(err)
+	}
 }
 
 // serveDescription serves the UPnP device description
