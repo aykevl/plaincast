@@ -51,7 +51,7 @@ const DEVICE_DESCRIPTION = `<?xml version="1.0"?>
 const APP_RESPONSE = `<?xml version="1.0" encoding="UTF-8"?>
 <service xmlns="urn:dial-multiscreen-org:schemas:dial" dialVer="1.7">
 	<name>{{.name}}</name> 
-	<options allowStop="true"/> 
+	<options allowStop="false"/> 
 	<state>{{.state}}</state> 
 {{if .runningUrl}}
 	<link rel="run" href="{{.runningUrl}}"/>
@@ -160,6 +160,8 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 		if req.Method != "DELETE" {
 			panic("expected delete on '" + req.URL.Path + "', not " + req.Method)
 		}
+		// This is a hidden feature. It is not advertized, but still supported,
+		// to make it easy to re-enable the DELETE method.
 		app.Quit()
 		return
 	}
@@ -179,16 +181,14 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 		}
 		message := string(buf)
 
-		if !app.Running() {
-			app.Start(message)
+		app.Start(message)
 
-			w.WriteHeader(201)
-			laddr := getLocalAddr(req)
-			runningAppUrl := fmt.Sprintf("http://%s:%d/apps/%s/run", getUrlIP(laddr), us.httpPort, appName)
-			w.Header().Set("Location", runningAppUrl)
-			w.Header().Set("Content-Length", "0")
-			return
-		}
+		w.WriteHeader(201)
+		laddr := getLocalAddr(req)
+		runningAppUrl := fmt.Sprintf("http://%s:%d/apps/%s/run", getUrlIP(laddr), us.httpPort, appName)
+		w.Header().Set("Location", runningAppUrl)
+		w.Header().Set("Content-Length", "0")
+		return
 
 	default:
 		panic("unimplemented method: " + req.Method)
