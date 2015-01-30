@@ -125,7 +125,7 @@ func (p *MediaPlayer) startPlaying(ps *PlayState, position time.Duration) {
 			// Check whether another video has been queued to be played already:
 			// one may be played while the URL for another is still being
 			// fetched.
-			if len(ps.Playlist) == 0 || ps.Playlist[ps.Index] != videoId {
+			if ps.Video() != videoId {
 				log.Printf("Video %s isn't needed anymore\n", videoId)
 				return
 			}

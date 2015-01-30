@@ -31,6 +31,15 @@ type PlayState struct {
 	newVolume         bool // true if the Volume property must be reapplied to the player
 }
 
+// Video returns the current video, or an empty string if there is no current
+// video.
+func (ps *PlayState) Video() string {
+	if len(ps.Playlist) == 0 {
+		return ""
+	}
+	return ps.Playlist[ps.Index]
+}
+
 type PlaylistState struct {
 	Playlist []string
 	Index    int
