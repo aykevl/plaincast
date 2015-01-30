@@ -56,9 +56,13 @@ func (mpv *MPV) initialize() (chan State, int) {
 	}
 
 	mpv.setOptionFlag("no-resume-playback", true)
-	mpv.setOptionFlag("no-video", true)
 	mpv.setOptionString("softvol", "yes")
 	mpv.setOptionInt("volume", initialVolume)
+
+	// Disable video in three ways.
+	mpv.setOptionFlag("no-video", true)
+	mpv.setOptionString("vo", "null")
+	mpv.setOptionString("vid", "no")
 
 	// Cache settings assume 128kbps audio stream (16kByte/s).
 	// The default is a cache size of 25MB, these are somewhat more sensible

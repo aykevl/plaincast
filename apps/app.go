@@ -1,7 +1,7 @@
 package apps
 
 type App interface {
-	Start(string)
+	Start(string) // start or provide extra data
 	Running() bool
 	Quit()
 }
