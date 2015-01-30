@@ -144,7 +144,7 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 
 	matches := us.appMatchString.FindSubmatch([]byte(req.URL.Path))
 	if matches == nil || len(matches) < 3 {
-		w.WriteHeader(404)
+		http.NotFound(w, req)
 		return
 	}
 
@@ -152,7 +152,7 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 
 	app, ok := us.apps[appName]
 	if !ok {
-		w.WriteHeader(404)
+		http.NotFound(w, req)
 		return
 	}
 
