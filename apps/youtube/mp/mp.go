@@ -40,6 +40,17 @@ func (ps *PlayState) Video() string {
 	return ps.Playlist[ps.Index]
 }
 
+// NextVideo returns the next video in the playlist, or an empty string if there
+// is no next video.
+func (ps *PlayState) NextVideo() string {
+	if len(ps.Playlist) <= ps.Index+1 {
+		// there are no more videos
+		return ""
+	}
+
+	return ps.Playlist[ps.Index+1]
+}
+
 type PlaylistState struct {
 	Playlist []string
 	Index    int

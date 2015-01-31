@@ -2,9 +2,6 @@ package mp
 
 import (
 	"log"
-	"os"
-	"os/exec"
-	"strings"
 	"time"
 )
 
@@ -17,14 +14,14 @@ type MediaPlayer struct {
 	// The pointer to the PlayState is used as an access token.
 	playstateChan chan PlayState
 
-	streams map[string]string // map of YouTube ID to stream gotten from youtube-dl
+	vg *VideoGrabber
 }
 
 func New(stateChange chan StateChange) *MediaPlayer {
 	p := MediaPlayer{}
 	p.stateChange = stateChange
 	p.playstateChan = make(chan PlayState)
-	p.streams = make(map[string]string)
+	p.vg = NewVideoGrabber()
 
 	p.player = &MPV{}
 	playerEventChan, initialVolume := p.player.initialize()
@@ -118,7 +115,7 @@ func (p *MediaPlayer) startPlaying(ps *PlayState, position time.Duration) {
 		// rule here.
 		ps = nil
 
-		streamUrl := p.getYouTubeStream(videoId)
+		streamUrl := p.vg.GetStream(videoId)
 
 		// again acquire PlayState access
 		p.changePlaystate(func(ps *PlayState) {
@@ -130,6 +127,13 @@ func (p *MediaPlayer) startPlaying(ps *PlayState, position time.Duration) {
 				return
 			}
 
+			if streamUrl == "" {
+				// Failed to get a stream.
+				// Try to play the next.
+				p.nextVideo(ps)
+				return
+			}
+
 			volume := -1
 			if ps.newVolume {
 				ps.newVolume = false
@@ -137,38 +141,51 @@ func (p *MediaPlayer) startPlaying(ps *PlayState, position time.Duration) {
 			}
 
 			p.player.play(streamUrl, position, volume)
+
+			go p.prefetchVideoStream(ps.NextVideo())
 		})
 	}()
 }
 
-func (p *MediaPlayer) getYouTubeStream(videoId string) string {
-	if stream, ok := p.streams[videoId]; ok {
-		return stream
+func (p *MediaPlayer) nextVideo(ps *PlayState) {
+	if ps.Index+1 < len(ps.Playlist) {
+		// there are more videos, play the next
+		ps.Index++
+		// p.startPlaying sets the playstate immediately to
+		// buffering (using setPlayState), so it's okay to change it
+		// here. And it is needed, otherwise startPlaying will pause
+		// the currently 'playing' track causing an error in MPV
+		// (nothing is playing, so nothing can be paused).
+		ps.State = STATE_STOPPED
+		p.startPlaying(ps, 0)
+	} else {
+		// signal that the video has stopped playing
+		// this resets the position but keeps the playlist
+		p.setPlayState(ps, STATE_STOPPED, 0)
+	}
+}
+
+// Prefetch the next video after the current video has played for a
+// short while.
+//
+// Warning: start this function in a new goroutine!
+func (p *MediaPlayer) prefetchVideoStream(videoId string) {
+	if videoId == "" {
+		return
 	}
 
-	youtubeUrl := "https://www.youtube.com/watch?v=" + videoId
+	time.Sleep(10 * time.Second)
 
-	log.Println("Fetching YouTube stream...", youtubeUrl)
-	// First (mkv-container) audio only, then video with audio bitrate 100+
-	// (where video has the lowest possible quality), then slightly lower
-	// quality audio.
-	// We do this because for some reason DASH aac audio (in the MP4 container)
-	// doesn't support seeking in any of the tested players (mpv using
-	// libavformat, and vlc, gstreamer and mplayer2 using their own demuxers).
-	// But the MKV container seems to have much better support.
-	// See:
-	//   https://github.com/mpv-player/mpv/issues/579
-	//   https://trac.ffmpeg.org/ticket/3842
-	cmd := exec.Command("youtube-dl", "-g", "-f", "171/172/43/22/18", youtubeUrl)
-	cmd.Stderr = os.Stderr
-	output, err := cmd.Output()
-	log.Println("Got stream for", youtubeUrl)
-	if err != nil {
-		panic(err)
-	}
-	stream := strings.TrimSpace(string(output))
-	p.streams[videoId] = stream
-	return stream
+	p.changePlaystate(func(ps *PlayState) {
+		next := ps.NextVideo()
+
+		if next == "" || next != videoId {
+			// The playlist has changed in the meantime
+			return
+		}
+
+		go p.vg.CacheStream(next)
+	})
 }
 
 // setPlayState updates the PlayState and sends events.
@@ -196,6 +213,8 @@ func (p *MediaPlayer) UpdatePlaylist(playlist []string) {
 }
 
 func (p *MediaPlayer) updatePlaylist(ps *PlayState, playlist []string) {
+	nextVideo := ps.NextVideo()
+
 	if len(ps.Playlist) == 0 {
 
 		if ps.State == STATE_PLAYING {
@@ -217,6 +236,10 @@ func (p *MediaPlayer) updatePlaylist(ps *PlayState, playlist []string) {
 		videoId := ps.Playlist[ps.Index]
 		ps.Playlist = playlist
 		p.setPlaylistIndex(ps, videoId)
+	}
+
+	if ps.NextVideo() != nextVideo {
+		go p.prefetchVideoStream(ps.NextVideo())
 	}
 }
 
@@ -400,21 +423,8 @@ func (p *MediaPlayer) run(playerEventChan chan State, initialVolume int) {
 					break
 				}
 
-				if ps.Index+1 < len(ps.Playlist) {
-					// there are more videos, play the next
-					ps.Index++
-					// p.startPlaying sets the playstate immediately to
-					// buffering (using setPlayState), so it's okay to change it
-					// here. And it is needed, otherwise startPlaying will pause
-					// the currently 'playing' track causing an error in MPV
-					// (nothing is playing, so nothing can be paused).
-					ps.State = STATE_STOPPED
-					p.startPlaying(&ps, 0)
-				} else {
-					// signal that the video has stopped playing
-					// this resets the position but keeps the playlist
-					p.setPlayState(&ps, STATE_STOPPED, 0)
-				}
+				// There may be more videos.
+				p.nextVideo(&ps)
 			}
 		}
 	}
