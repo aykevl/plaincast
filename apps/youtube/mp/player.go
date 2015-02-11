@@ -38,16 +38,19 @@ func New(stateChange chan StateChange) *MediaPlayer {
 func (p *MediaPlayer) Quit() {
 	p.changePlaystate(func(ps *PlayState) {
 		p.player.quit()
+		p.vg.Quit()
 	})
 }
 
 func (p *MediaPlayer) getPosition(ps *PlayState) time.Duration {
 	var position time.Duration
-	if ps.State == STATE_STOPPED {
+
+	switch ps.State {
+	case STATE_STOPPED:
 		position = 0
-	} else if ps.State == STATE_BUFFERING {
+	case STATE_BUFFERING:
 		position = ps.bufferingPosition
-	} else {
+	default:
 		var err error
 		position, err = p.player.getPosition()
 		if err != nil {
