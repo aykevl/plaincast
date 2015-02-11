@@ -563,7 +563,23 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 }
 
 func (yt *YouTube) sendMessages() {
+	queuedMessages := make([]outgoingMessage, 0, 3)
 	count := 0
+
+	var deadline time.Time
+	deadlineStart := make(chan struct{})
+	deadlineEnd := make(chan struct{})
+	go func() {
+		for _ = range deadlineStart {
+			// It looks like 10ms is a good default. HTTP latency appears to be
+			// relatively independent of the machine performance, so I guess it is bound
+			// by the speed of light...
+			time.Sleep(10 * time.Millisecond)
+			deadlineEnd <- struct{}{}
+		}
+	}()
+	defer close(deadlineStart)
+
 	for {
 		select {
 		case message, ok := <-yt.outgoingMessages:
@@ -571,13 +587,27 @@ func (yt *YouTube) sendMessages() {
 				// This is the sign the sendMessages goroutine should quit.
 				return
 			}
-			values := url.Values{
-				"count":    []string{"1"},
-				"ofs":      []string{strconv.Itoa(count)},
-				"req0__sc": []string{message.command},
+
+			queuedMessages = append(queuedMessages, message)
+
+			if deadline.IsZero() {
+				deadline = time.Now()
+				deadlineStart <- struct{}{}
+				continue
 			}
-			for k, v := range message.args {
-				values.Set("req0_"+k, v)
+
+		case <-deadlineEnd:
+			values := url.Values{
+				"count": []string{strconv.Itoa(len(queuedMessages))}, // the amount of messages in this POST
+				"ofs":   []string{strconv.Itoa(count)},               // which index the first message has
+			}
+			for i, message := range queuedMessages {
+				req := "req" + strconv.Itoa(i) + "_"
+				values.Set(req+"_sc", message.command)
+				for k, v := range message.args {
+					values.Set(req+k, v)
+				}
+				log.Println("send msg:", message.command, message.args)
 			}
 
 			timeBeforeSend := time.Now()
@@ -585,13 +615,19 @@ func (yt *YouTube) sendMessages() {
 			_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
 				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, <-yt.rid, yt.aid, yt.gsessionid, zx()), values)
 			if err != nil {
-				panic(err)
+				log.Println("ERROR: could not send message:", err)
+				yt.Quit()
+				return
 			}
 
-			latency := time.Now().Sub(timeBeforeSend) / time.Millisecond * time.Millisecond
-			log.Println("send msg:", latency, message.command, message.args)
+			prepareLatency := timeBeforeSend.Sub(deadline) / time.Millisecond * time.Millisecond
+			httpLatency := time.Now().Sub(timeBeforeSend) / time.Millisecond * time.Millisecond
+			log.Printf("messages sent: %d (prepare %s, http latency %s)", len(queuedMessages), prepareLatency, httpLatency)
 
-			count += 1
+			count += len(queuedMessages)
+			queuedMessages = queuedMessages[:0]
+
+			deadline = time.Time{}
 
 		case pairingCode := <-yt.pairingCodes:
 			// Register the pairing code: that can be done after sending and
