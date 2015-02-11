@@ -71,7 +71,11 @@ func (p *MediaPlayer) getPosition(ps *PlayState) time.Duration {
 // changed, but it can only be accessed inside the callback (outside of
 // it, race conditions can occur).
 func (p *MediaPlayer) changePlaystate(callback func(*PlayState)) {
-	ps := <-p.playstateChan
+	ps, ok := <-p.playstateChan
+	if !ok {
+		// The player has already stopped. Ignore all function calls.
+		return
+	}
 	callback(&ps)
 	p.playstateChan <- ps
 }
@@ -276,10 +280,26 @@ func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string) {
 	ps.Index = newIndex
 }
 
+// RequestPlaylist asynchronously gets the playlist state and sends it over the
+// channel.
+// To make asynchronous requests work, it expects a 1-buffered channel. Before a
+// new PlaylistState is sent over the channel, the previous is read if it's
+// there. It ensures that only one goroutine does that at one time, so this
+// trick should not be used elsewhere on the same channel.
 func (p *MediaPlayer) RequestPlaylist(playlistChan chan PlaylistState) {
-	p.changePlaystate(func(ps *PlayState) {
+	go p.changePlaystate(func(ps *PlayState) {
 		playlist := make([]string, len(ps.Playlist))
 		copy(playlist, ps.Playlist)
+
+		// If there is a value in the (buffered) channel, clear it.
+		// Only one goroutine at a time can do this, because they're guarded by
+		// changePlaystate. This makes sure the request can run in a goroutine
+		// while no goroutines are being leaked and values always arrive in
+		// order.
+		select {
+		case <-playlistChan:
+		default:
+		}
 		playlistChan <- PlaylistState{playlist, ps.Index, p.getPosition(ps), ps.State}
 	})
 }
@@ -357,8 +377,15 @@ func (p *MediaPlayer) applyVolume(ps *PlayState, volumeChan chan int) {
 	volumeChan <- ps.Volume
 }
 
+// RequestVolume asynchronously gets the volume and sends it over the channel
+// volumeChan. See RequestPlaylist for how this works.
 func (p *MediaPlayer) RequestVolume(volumeChan chan int) {
-	p.changePlaystate(func(ps *PlayState) {
+	go p.changePlaystate(func(ps *PlayState) {
+
+		select {
+		case <-volumeChan:
+		default:
+		}
 		volumeChan <- ps.Volume
 	})
 }
@@ -394,9 +421,6 @@ func (p *MediaPlayer) run(playerEventChan chan State, initialVolume int) {
 			if !ok {
 				// player has quit, and closed channel
 				close(p.stateChange)
-				// TODO new requests may still be sent over this channel,
-				// causing a run-time panic (send on closed channel).
-				// This can happen, for example, in the startPlaying goroutine.
 				close(p.playstateChan)
 				return
 			}

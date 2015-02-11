@@ -186,7 +186,7 @@ func (yt *YouTube) run(arguments url.Values) {
 	log.Println("running YouTube")
 
 	stateChange := make(chan mp.StateChange)
-	volumeChan := make(chan int)
+	volumeChan := make(chan int, 1)
 	playlistChan := make(chan mp.PlaylistState)
 	nowPlayingChan := make(chan mp.PlaylistState, 1)
 	// nowPlayingChan will ask for a signal inside playerEvents.
