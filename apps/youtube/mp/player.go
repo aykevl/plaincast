@@ -187,7 +187,7 @@ func (p *MediaPlayer) prefetchVideoStream(videoId string) {
 			return
 		}
 
-		go p.vg.CacheStream(next)
+		go p.vg.GetStream(next)
 	})
 }
 

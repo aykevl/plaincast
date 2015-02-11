@@ -1,153 +1,179 @@
 package mp
 
 import (
-	"bytes"
+	"bufio"
+	"io"
 	"log"
 	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
 
+const pythonGrabber = `
+from youtube_dl import YoutubeDL
+import sys
+
+if len(sys.argv) != 2:
+    sys.stderr.write('provide one argument with the format string')
+    os.exit(1)
+
+yt = YoutubeDL({
+    'geturl': True,
+    'format': sys.argv[1],
+    'quiet': True,
+    'simulate': True})
+
+sys.stderr.write('YouTube-DL started.\n')
+
+try:
+    while True:
+        url = raw_input()
+        info = yt.extract_info(url, ie_key='Youtube')
+        sys.stdout.write(info['url'] + '\n')
+        sys.stdout.flush()
+except (KeyboardInterrupt, EOFError):
+    pass
+`
+
+// First (mkv-container) audio only with 100+kbps, then video with audio
+// bitrate 100+ (where video has the lowest possible quality), then
+// slightly lower quality audio.
+// We do this because for some reason DASH aac audio (in the MP4 container)
+// doesn't support seeking in any of the tested players (mpv using
+// libavformat, and vlc, gstreamer and mplayer2 using their own demuxers).
+// But the MKV container seems to have much better support.
+// See:
+//   https://github.com/mpv-player/mpv/issues/579
+//   https://trac.ffmpeg.org/ticket/3842
+const grabberFormats = "171/172/43/22/18"
+
 type VideoGrabber struct {
-	streams      map[string]*VideoUrl // map of video ID to stream gotten from youtube-dl
+	streams      map[string]*VideoURL // map of video ID to stream gotten from youtube-dl
 	streamsMutex sync.Mutex
 	cmd          *exec.Cmd
 	cmdMutex     sync.Mutex
-	fetchMutex   sync.Mutex
+	cmdStdin     io.Writer
+	cmdStdout    *bufio.Reader
 }
 
 func NewVideoGrabber() *VideoGrabber {
 	vg := VideoGrabber{}
-	vg.streams = make(map[string]*VideoUrl)
+	vg.streams = make(map[string]*VideoURL)
+
+	// Start the process in a separate goroutine.
+	vg.cmdMutex.Lock()
+	go func() {
+		defer vg.cmdMutex.Unlock()
+
+		vg.cmd = exec.Command("python", "-c", pythonGrabber, grabberFormats)
+		stdout, err := vg.cmd.StdoutPipe()
+		if err != nil {
+			log.Fatal(err)
+		}
+		vg.cmdStdout = bufio.NewReader(stdout)
+		vg.cmdStdin, err = vg.cmd.StdinPipe()
+		if err != nil {
+			log.Fatal(err)
+		}
+		vg.cmd.Stderr = os.Stderr
+		err = vg.cmd.Start()
+		if err != nil {
+			log.Fatal("Could not start video stream grabber:", err)
+		}
+
+	}()
+
 	return &vg
+}
+
+func (vg *VideoGrabber) Quit() {
+	vg.cmdMutex.Lock()
+	defer vg.cmdMutex.Unlock()
+
+	err := vg.cmd.Process.Signal(os.Interrupt)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Wait until exit, and free resources
+	err = vg.cmd.Wait()
+	if err != nil {
+		if _, ok := err.(*exec.ExitError); !ok {
+			log.Fatal(err)
+		}
+	}
 }
 
 // GetStream returns the stream for videoId, or an empty string if an error
 // occured.
 func (vg *VideoGrabber) GetStream(videoId string) string {
-	return vg.getStream(videoId, true)
+	return vg.getStream(videoId).GetURL()
 }
 
-func (vg *VideoGrabber) getStream(videoId string, killCurrent bool) string {
+func (vg *VideoGrabber) getStream(videoId string) *VideoURL {
 	vg.streamsMutex.Lock()
+	defer vg.streamsMutex.Unlock()
+
+	if videoId == "" {
+		panic("empty video ID")
+	}
 
 	stream, ok := vg.streams[videoId]
 	if ok {
-		vg.streamsMutex.Unlock()
-
 		if !stream.WillExpire() {
-
-			return stream.GetUrl()
+			return stream
 		} else {
 			log.Println("Stream has expired for ID:", videoId)
 		}
-
-		vg.streamsMutex.Lock()
 	}
 
-	videoUrl := "https://www.youtube.com/watch?v=" + videoId
-	log.Println("Fetching video stream for URL", videoUrl)
+	videoURL := "https://www.youtube.com/watch?v=" + videoId
+	log.Println("Fetching video stream for URL", videoURL)
 
-	stream = &VideoUrl{videoId: videoId}
+	// Streams normally expire in 6 hour, give it a margin of one hour.
+	stream = &VideoURL{videoId: videoId, expires: time.Now().Add(5 * time.Hour)}
 	stream.fetchMutex.Lock()
-
-	go func() {
-		defer stream.fetchMutex.Unlock()
-
-		vg.cmdMutex.Lock()
-		defer vg.cmdMutex.Unlock()
-
-		if killCurrent {
-			if vg.cmd != nil {
-				err := vg.cmd.Process.Signal(os.Interrupt)
-				if err != nil {
-					log.Println("ERROR: could not stop command:", err)
-				} else {
-					log.Println("Interrupted video grabber")
-				}
-
-				vg.cmd = nil
-			}
-		} else {
-			vg.fetchMutex.Lock()
-			defer vg.fetchMutex.Unlock()
-		}
-
-		// First (mkv-container) audio only, then video with audio bitrate 100+
-		// (where video has the lowest possible quality), then slightly lower
-		// quality audio.
-		// We do this because for some reason DASH aac audio (in the MP4 container)
-		// doesn't support seeking in any of the tested players (mpv using
-		// libavformat, and vlc, gstreamer and mplayer2 using their own demuxers).
-		// But the MKV container seems to have much better support.
-		// See:
-		//   https://github.com/mpv-player/mpv/issues/579
-		//   https://trac.ffmpeg.org/ticket/3842
-		cmd := exec.Command("youtube-dl", "-g", "-f", "171/172/43/22/18", videoUrl)
-		var buf bytes.Buffer
-		cmd.Stdout = &buf
-		cmd.Stderr = os.Stderr
-
-		vg.cmd = cmd
-
-		err := cmd.Start()
-		if err != nil {
-			log.Println("Failed to start video stream fetcher:", err)
-			return
-		}
-
-		vg.cmdMutex.Unlock()
-		err = cmd.Wait()
-		if err != nil {
-			log.Printf("Failed to fetch video %s: %s", videoUrl, err)
-			vg.cmdMutex.Lock()
-			vg.cmd = nil
-			return
-		}
-		vg.cmdMutex.Lock()
-
-		vg.cmd = nil
-
-		log.Println("Got stream for", videoUrl)
-
-		if cmd != vg.cmd {
-			// this should not happen
-			panic("vg.cmd has changed")
-		}
-
-		stream.url = strings.TrimSpace(string(buf.Bytes()))
-
-		stream.expires, err = getExpiresFromUrl(stream.url)
-		if err != nil {
-			log.Println("WARNING: failed to extract expires from video URL:", err)
-		}
-	}()
 
 	vg.streams[videoId] = stream
 
-	vg.streamsMutex.Unlock()
+	go func() {
+		vg.cmdMutex.Lock()
+		defer vg.cmdMutex.Unlock()
 
-	return stream.GetUrl()
+		io.WriteString(vg.cmdStdin, videoURL+"\n")
+		line, err := vg.cmdStdout.ReadString('\n')
+		if err != nil {
+			log.Fatal("could not grab video:", err)
+		}
+
+		stream.url = line[:len(line)-1]
+		stream.fetchMutex.Unlock()
+
+		log.Println("Got stream for", videoURL)
+
+		expires, err := getExpiresFromURL(stream.url)
+		if err != nil {
+			log.Println("WARNING: failed to extract expires from video URL:", err)
+		} else if expires.Before(stream.expires) {
+			log.Println("WARNING: URL expires before the estimated expires!")
+		}
+	}()
+
+	return stream
 }
 
-// CacheStream will start fetching the stream in the background.
-func (vg VideoGrabber) CacheStream(videoId string) {
-	go vg.getStream(videoId, false)
-}
-
-type VideoUrl struct {
+type VideoURL struct {
 	videoId    string
 	fetchMutex sync.RWMutex
 	url        string
 	expires    time.Time
 }
 
-func getExpiresFromUrl(videoUrl string) (time.Time, error) {
-	u, err := url.Parse(videoUrl)
+func getExpiresFromURL(videoURL string) (time.Time, error) {
+	u, err := url.Parse(videoURL)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -166,23 +192,19 @@ func getExpiresFromUrl(videoUrl string) (time.Time, error) {
 }
 
 // WillExpire returns true if this stream will expire within an hour.
-// This function may block until the video has been fetched or an error occurs.
-func (u *VideoUrl) WillExpire() bool {
-	u.fetchMutex.RLock()
-	defer u.fetchMutex.RUnlock()
-
+func (u *VideoURL) WillExpire() bool {
 	return !u.expires.IsZero() && u.expires.Before(time.Now().Add(time.Hour))
 }
 
 // Gets the video stream URL, possibly waiting until that video has been fetched
 // or an error occurs. An empty string will be returned on error.
-func (u *VideoUrl) GetUrl() string {
+func (u *VideoURL) GetURL() string {
 	u.fetchMutex.RLock()
 	defer u.fetchMutex.RUnlock()
 
 	return u.url
 }
 
-func (u *VideoUrl) String() string {
-	return "<VideoUrl " + u.videoId + ">"
+func (u *VideoURL) String() string {
+	return "<VideoURL " + u.videoId + ">"
 }
