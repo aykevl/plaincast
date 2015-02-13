@@ -2,7 +2,6 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -176,11 +175,15 @@ func (us *UPnPServer) serveHome(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (us *UPnPServer) getApplicationURL(req *http.Request) string {
+	return "http://" + getUrlIP(getLocalAddr(req)) + ":" + strconv.Itoa(us.httpPort) + "/apps/"
+}
+
 // serveDescription serves the UPnP device description
 func (us *UPnPServer) serveDescription(w http.ResponseWriter, req *http.Request) {
 	log.Println("http", req.Method, req.URL.Path)
 
-	w.Header().Set("Application-URL", fmt.Sprintf("http://%s:%d/apps/", getUrlIP(getLocalAddr(req)), us.httpPort))
+	w.Header().Set("Application-URL", us.getApplicationURL(req))
 
 	deviceDescription := map[string]interface{}{
 		"ConfigId":     CONFIGID,
@@ -251,9 +254,7 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 		app.Start(message)
 
 		w.WriteHeader(201)
-		laddr := getLocalAddr(req)
-		runningAppUrl := fmt.Sprintf("http://%s:%d/apps/%s/run", getUrlIP(laddr), us.httpPort, appName)
-		w.Header().Set("Location", runningAppUrl)
+		w.Header().Set("Location", us.getApplicationURL(req)+appName+"/run")
 		w.Header().Set("Content-Length", "0")
 		return
 
