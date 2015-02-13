@@ -294,14 +294,15 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 	log.Println("http", req.Method, req.URL.Path)
 
-	path := req.URL.Path
+	proxyUrl := req.URL.Path
 	if req.URL.RawQuery != "" {
-		path += "?" + req.URL.RawQuery
+		proxyUrl += "?" + req.URL.RawQuery
 	}
-	path = "https://" + path[len("/proxy/"):]
+	proxyUrl = "https://" + proxyUrl[len("/proxy/"):]
+	log.Println("proxy", proxyUrl)
 
 	// client/proxied request
-	creq, err := http.NewRequest("GET", path, nil)
+	creq, err := http.NewRequest("GET", proxyUrl, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -320,13 +321,19 @@ func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
 	if resp.ContentLength >= 0 {
 		_, err = io.CopyN(w, resp.Body, resp.ContentLength)
 	} else {
 		_, err = io.Copy(w, resp.Body)
 	}
 	if err != nil {
-		panic(err)
+		log.Println("http proxy error:", err)
 	}
 }
 

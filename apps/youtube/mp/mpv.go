@@ -208,7 +208,12 @@ func (mpv *MPV) play(stream string, position time.Duration, volume int) {
 		options += fmt.Sprintf(",volume=%d", volume)
 	}
 
-	mpv.sendCommand([]string{"loadfile", stream, "replace", options})
+	// The proxy is a workaround for misbehaving libav/libnettle that appear to
+	// try to read the whole HTTP response before closing the connection. Go has
+	// a better HTTPS implementation, which is used here as a workaround.
+	// This libav/libnettle combination is in use on Debian jessie. FFmpeg
+	// doesn't have a problem with it.
+	mpv.sendCommand([]string{"loadfile", "http://localhost:8008/proxy/" + stream[len("https://"):], "replace", options})
 }
 
 func (mpv *MPV) pause() {
