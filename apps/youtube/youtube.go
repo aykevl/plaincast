@@ -150,10 +150,15 @@ func (yt *YouTube) init(arguments url.Values, stateChange chan mp.StateChange) {
 	yt.outgoingMessages = make(chan outgoingMessage, 5)
 	yt.aid = -1
 
-	// This is a goroutine that starts two other goroutines: one that receives
-	// messages from YouTube and the other that sends all messages to YouTube.
-	// It exits after the message channel has been successfully set up.
-	go yt.connect(arguments["pairingCode"][0])
+	// This is a goroutine that receives messages from YouTube and starts a
+	// goroutine to send messages to YouTube.
+	go yt.connect()
+
+	if pairingCodes, ok := arguments["pairingCode"]; ok {
+		go func() {
+			yt.pairingCodes <- pairingCodes[0]
+		}()
+	}
 
 	yt.mp = mp.New(stateChange)
 
@@ -349,7 +354,7 @@ func (yt *YouTube) Running() bool {
 	return yt.running
 }
 
-func (yt *YouTube) connect(pairingCode string) {
+func (yt *YouTube) connect() {
 	log.Println("Getting lounge token batch...")
 	params := url.Values{
 		"screen_ids": []string{yt.getScreenId()},
@@ -364,9 +369,7 @@ func (yt *YouTube) connect(pairingCode string) {
 
 	// Start sending/receiving channel.
 	// There should now be enough information.
-	go yt.bind()
-
-	yt.pairingCodes <- pairingCode
+	yt.bind()
 }
 
 func (yt *YouTube) getScreenId() string {
