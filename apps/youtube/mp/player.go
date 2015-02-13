@@ -234,10 +234,6 @@ func (p *MediaPlayer) updatePlaylist(ps *PlayState, playlist []string) {
 			ps.Index = len(playlist) - 1
 		}
 
-		if ps.State == STATE_STOPPED {
-			p.startPlaying(ps, 0)
-		}
-
 	} else {
 		videoId := ps.Playlist[ps.Index]
 		ps.Playlist = playlist
