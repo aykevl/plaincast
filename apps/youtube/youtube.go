@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -45,8 +44,7 @@ type YouTube struct {
 	runningMutex sync.Mutex
 	// TODO split everything under here into a separate struct, so re-running
 	// the app won't clash with the previous run.
-	rid              chan int // sends random numbers for outgoing messages
-	ridQuit          chan struct{}
+	rid              *RandomID // generates random numbers for outgoing messages
 	runQuit          chan struct{}
 	uuid             string
 	loungeToken      string
@@ -130,13 +128,12 @@ func (yt *YouTube) Quit() {
 	yt.running = false
 
 	yt.runQuit <- struct{}{}
-	yt.ridQuit <- struct{}{}
 }
 
 func (yt *YouTube) init(arguments url.Values, stateChange chan mp.StateChange) {
 	var err error
 
-	yt.rid, yt.ridQuit = yt.ridIterator()
+	yt.rid = NewRandomID()
 
 	c := config.Get()
 	yt.uuid, err = c.GetString("apps.youtube.uuid", func() (string, error) {
@@ -393,7 +390,7 @@ func (yt *YouTube) bind() {
 	}
 	// TODO more fields should be query-escaped
 	bindUrl := fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=%d&zx=%s",
-		yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, <-yt.rid, zx())
+		yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.rid.Next(), zx())
 	resp, err := http.PostForm(bindUrl, params)
 	if err != nil {
 		panic(err)
@@ -613,7 +610,7 @@ func (yt *YouTube) sendMessages() {
 			timeBeforeSend := time.Now()
 
 			_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
-				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, <-yt.rid, yt.aid, yt.gsessionid, zx()), values)
+				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, yt.rid.Next(), yt.aid, yt.gsessionid, zx()), values)
 			if err != nil {
 				log.Println("ERROR: could not send message:", err)
 				yt.Quit()
@@ -644,24 +641,4 @@ func (yt *YouTube) sendMessages() {
 			}
 		}
 	}
-}
-
-func (yt *YouTube) ridIterator() (chan int, chan struct{}) {
-	// this appears to be a random number between 10000-99999
-	rid := rand.Intn(80000) + 10000
-	c := make(chan int)
-	quit := make(chan struct{})
-
-	go func() {
-		for {
-			select {
-			case c <- rid:
-				rid++
-			case <-quit:
-				return
-			}
-		}
-	}()
-
-	return c, quit
 }
