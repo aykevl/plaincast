@@ -36,7 +36,7 @@ func New(stateChange chan StateChange) *MediaPlayer {
 // No other method may be called upon this object after this function has been
 // called.
 func (p *MediaPlayer) Quit() {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		p.player.quit()
 		p.vg.Quit()
 	})
@@ -66,11 +66,10 @@ func (p *MediaPlayer) getPosition(ps *PlayState) time.Duration {
 	return position
 }
 
-// changePlaystate changes the play state inside a callback
-// The *PlayState argument in the callback is the PlayState that can be
-// changed, but it can only be accessed inside the callback (outside of
-// it, race conditions can occur).
-func (p *MediaPlayer) changePlaystate(callback func(*PlayState)) {
+// getPlayState gets the play state for use in a callback.
+// The *PlayState argument may only be used until the callback exits to prevent
+// race conditions.
+func (p *MediaPlayer) getPlayState(callback func(*PlayState)) {
 	ps, ok := <-p.playstateChan
 	if !ok {
 		// The player has already stopped. Ignore all function calls.
@@ -83,7 +82,7 @@ func (p *MediaPlayer) changePlaystate(callback func(*PlayState)) {
 // SetPlaystate changes the play state to the specified arguments
 // This function doesn't block, but changes may not be immediately applied.
 func (p *MediaPlayer) SetPlaystate(playlist []string, index int, position time.Duration) {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		if ps.State == STATE_BUFFERING && ps.bufferingPosition == position && ps.Index < len(ps.Playlist) && playlist[index] == ps.Playlist[ps.Index] {
 			// just in case something else has changed, update the playlist
 			p.updatePlaylist(ps, playlist)
@@ -125,7 +124,7 @@ func (p *MediaPlayer) startPlaying(ps *PlayState, position time.Duration) {
 		streamUrl := p.vg.GetStream(videoId)
 
 		// again acquire PlayState access
-		p.changePlaystate(func(ps *PlayState) {
+		p.getPlayState(func(ps *PlayState) {
 			// Check whether another video has been queued to be played already:
 			// one may be played while the URL for another is still being
 			// fetched.
@@ -183,7 +182,7 @@ func (p *MediaPlayer) prefetchVideoStream(videoId string) {
 
 	time.Sleep(10 * time.Second)
 
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		next := ps.NextVideo()
 
 		if next == "" || next != videoId {
@@ -214,7 +213,7 @@ func (p *MediaPlayer) setPlayState(ps *PlayState, state State, position time.Dur
 }
 
 func (p *MediaPlayer) UpdatePlaylist(playlist []string) {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		p.updatePlaylist(ps, playlist)
 	})
 }
@@ -251,7 +250,7 @@ func (p *MediaPlayer) updatePlaylist(ps *PlayState, playlist []string) {
 }
 
 func (p *MediaPlayer) SetVideo(videoId string, position time.Duration) {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		p.setPlaylistIndex(ps, videoId)
 		p.startPlaying(ps, position)
 	})
@@ -287,13 +286,13 @@ func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string) {
 // there. It ensures that only one goroutine does that at one time, so this
 // trick should not be used elsewhere on the same channel.
 func (p *MediaPlayer) RequestPlaylist(playlistChan chan PlaylistState) {
-	go p.changePlaystate(func(ps *PlayState) {
+	go p.getPlayState(func(ps *PlayState) {
 		playlist := make([]string, len(ps.Playlist))
 		copy(playlist, ps.Playlist)
 
 		// If there is a value in the (buffered) channel, clear it.
 		// Only one goroutine at a time can do this, because they're guarded by
-		// changePlaystate. This makes sure the request can run in a goroutine
+		// getPlayState. This makes sure the request can run in a goroutine
 		// while no goroutines are being leaked and values always arrive in
 		// order.
 		select {
@@ -306,7 +305,7 @@ func (p *MediaPlayer) RequestPlaylist(playlistChan chan PlaylistState) {
 
 // Pause pauses the currently playing video
 func (p *MediaPlayer) Pause() {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		if ps.State != STATE_PLAYING {
 			log.Printf("Warning: pause while in state %d - ignoring\n", ps.State)
 		} else {
@@ -317,7 +316,7 @@ func (p *MediaPlayer) Pause() {
 
 // Play resumes playback when it was paused
 func (p *MediaPlayer) Play() {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		if ps.State == STATE_STOPPED {
 			// Restart from the beginning.
 			p.startPlaying(ps, 0)
@@ -334,7 +333,7 @@ func (p *MediaPlayer) Play() {
 
 // Seek jumps to the specified position
 func (p *MediaPlayer) Seek(position time.Duration) {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		if ps.State == STATE_PAUSED || ps.State == STATE_PLAYING {
 			p.player.setPosition(position)
 		} else {
@@ -345,7 +344,7 @@ func (p *MediaPlayer) Seek(position time.Duration) {
 
 // SetVolume sets the volume of the player to the specified value (0-100).
 func (p *MediaPlayer) SetVolume(volume int, volumeChan chan int) {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		ps.Volume = volume
 		p.applyVolume(ps, volumeChan)
 	})
@@ -353,7 +352,7 @@ func (p *MediaPlayer) SetVolume(volume int, volumeChan chan int) {
 
 // ChangeVolume increases or decreases the volume by the specified delta.
 func (p *MediaPlayer) ChangeVolume(delta int, volumeChan chan int) {
-	p.changePlaystate(func(ps *PlayState) {
+	p.getPlayState(func(ps *PlayState) {
 		ps.Volume += delta
 		// pressing 'volume up' or 'volume down' keeps sending volume
 		// increase/decrease messages. Keep the volume within range 0-100.
@@ -380,7 +379,7 @@ func (p *MediaPlayer) applyVolume(ps *PlayState, volumeChan chan int) {
 // RequestVolume asynchronously gets the volume and sends it over the channel
 // volumeChan. See RequestPlaylist for how this works.
 func (p *MediaPlayer) RequestVolume(volumeChan chan int) {
-	go p.changePlaystate(func(ps *PlayState) {
+	go p.getPlayState(func(ps *PlayState) {
 
 		select {
 		case <-volumeChan:
@@ -400,7 +399,7 @@ func (p *MediaPlayer) stop(ps *PlayState) {
 
 // Stop stops the currently playing sound and clears the playlist.
 func (p *MediaPlayer) Stop() {
-	p.changePlaystate(p.stop)
+	p.getPlayState(p.stop)
 }
 
 // Function run is the mainloop of the player. It mainly handles state change
