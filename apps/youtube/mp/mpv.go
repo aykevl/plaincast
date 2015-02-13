@@ -252,9 +252,7 @@ func (mpv *MPV) getVolume() int {
 
 func (mpv *MPV) setVolume(volume int) {
 	mpv.setProperty("volume", strconv.Itoa(volume))
-	// TODO make config setting non-blocking.
-	// Currently, this is a small race condition.
-	go config.Get().SetInt("player.mpv.volume", volume)
+	config.Get().SetInt("player.mpv.volume", volume)
 }
 
 func (mpv *MPV) stop() {

@@ -8,13 +8,16 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"sync"
 )
 
 type Config struct {
-	sync.Mutex
-	data map[string]interface{}
-	path string
+	path          string
+	dataMutex     sync.Mutex
+	data          map[string]interface{}
+	saveChanMutex sync.Mutex
+	saveChan      chan struct{}
 }
 
 var config *Config
@@ -40,9 +43,10 @@ func Get() *Config {
 }
 
 func newConfig(path string) *Config {
-	c := Config{}
+	c := &Config{}
 	c.data = make(map[string]interface{})
 	c.path = path
+	c.saveChan = make(chan struct{}, 1)
 
 	if _, err := os.Stat(c.path); !os.IsNotExist(err) {
 		f, err := os.Open(c.path)
@@ -54,12 +58,19 @@ func newConfig(path string) *Config {
 		handle(json.Unmarshal(buf, &c.data), "could not decode config file")
 	}
 
-	return &c
+	go c.saveTask()
+
+	runtime.SetFinalizer(c, func(c *Config) {
+		// Close the channel and exit the goroutine.
+		close(c.saveChan)
+	})
+
+	return c
 }
 
 func (c *Config) GetString(key string, valueCall func() (string, error)) (string, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.dataMutex.Lock()
+	defer c.dataMutex.Unlock()
 
 	if value, ok := c.data[key]; ok {
 		if svalue, ok := value.(string); ok {
@@ -81,8 +92,8 @@ func (c *Config) GetString(key string, valueCall func() (string, error)) (string
 }
 
 func (c *Config) GetInt(key string, valueCall func() (int, error)) (int, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.dataMutex.Lock()
+	defer c.dataMutex.Unlock()
 
 	if value, ok := c.data[key]; ok {
 		if svalue, ok := value.(float64); ok {
@@ -104,26 +115,49 @@ func (c *Config) GetInt(key string, valueCall func() (int, error)) (int, error) 
 }
 
 func (c *Config) SetInt(key string, value int) {
-	c.Lock()
-	defer c.Unlock()
+	c.dataMutex.Lock()
+	defer c.dataMutex.Unlock()
 
 	c.data[key] = float64(value)
 	c.save()
 }
 
 func (c *Config) save() {
-	// TODO do saving asynchronously
+	// Make sure this function cannot be executed multiple times at the same
+	// moment.
+	c.saveChanMutex.Lock()
+	defer c.saveChanMutex.Unlock()
 
-	data, err := json.MarshalIndent(&c.data, "", "\t")
-	handle(err, "could not serialize config data")
+	// Read a value from the channel if it exists. This will not block due to
+	// the 'default' case.
+	// This will only read a value in the (very) rare case that saveTask is
+	// still busy with the previous save or just hasn't come to saving while
+	// save() is called twice.
+	select {
+	case _ = <-c.saveChan:
+	default:
+	}
 
-	f, err := os.Create(c.path + ".tmp")
-	handle(err, "could not open config file")
-	_, err = f.Write(data)
-	handle(err, "could not write config file")
-	handle(f.Close(), "could not close config file")
+	// Send an empty value on the channel. This will not block as the 1-buffered
+	// channel just got emptied.
+	c.saveChan <- struct{}{}
+}
 
-	handle(os.Rename(c.path+".tmp", c.path), "could not replace config file")
+// saveTask runs in a goroutine and handles saving the configuration
+// asynchronously.
+func (c *Config) saveTask() {
+	for _ = range c.saveChan {
+		data, err := json.MarshalIndent(&c.data, "", "\t")
+		handle(err, "could not serialize config data")
+
+		f, err := os.Create(c.path + ".tmp")
+		handle(err, "could not open config file")
+		_, err = f.Write(data)
+		handle(err, "could not write config file")
+		handle(f.Close(), "could not close config file")
+
+		handle(os.Rename(c.path+".tmp", c.path), "could not replace config file")
+	}
 }
 
 func handle(err error, message string) {
