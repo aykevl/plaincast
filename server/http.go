@@ -108,7 +108,6 @@ func NewUPnPServer() *UPnPServer {
 	http.HandleFunc("/upnp/description.xml", us.serveDescription)
 	http.HandleFunc("/apps/", us.serveApp)
 	http.HandleFunc("/proxy/", us.serveProxy)
-	http.HandleFunc("/hacks/silence.wav", us.serveSilence)
 	http.HandleFunc("/", us.serveHome)
 
 	return us
@@ -336,16 +335,6 @@ func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Println("http proxy error:", err)
 	}
-}
-
-// serveSilence serves a WAV file of one byte silence
-// This hack is needed for working aroud a VLC bug.
-func (us *UPnPServer) serveSilence(w http.ResponseWriter, req *http.Request) {
-	log.Println("http", req.Method, req.URL.Path)
-
-	w.Header().Set("Content-Type", "audio/wav")
-	w.Header().Set("Content-Length", "46")
-	io.WriteString(w, "RIFF&\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00D\xac\x00\x00\x88X\x01\x00\x02\x00\x10\x00data\x02\x00\x00\x00\x01\x00")
 }
 
 // partially copied from net/http sources
