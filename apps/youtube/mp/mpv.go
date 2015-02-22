@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -213,6 +214,9 @@ func (mpv *MPV) play(stream string, position time.Duration, volume int) {
 	// a better HTTPS implementation, which is used here as a workaround.
 	// This libav/libnettle combination is in use on Debian jessie. FFmpeg
 	// doesn't have a problem with it.
+	if !strings.HasPrefix(stream, "https://") {
+		log.Panic("Stream does not start with https://...")
+	}
 	mpv.sendCommand([]string{"loadfile", "http://localhost:8008/proxy/" + stream[len("https://"):], "replace", options})
 }
 

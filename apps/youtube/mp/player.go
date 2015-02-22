@@ -136,6 +136,7 @@ func (p *MediaPlayer) startPlaying(ps *PlayState, position time.Duration) {
 			if streamUrl == "" {
 				// Failed to get a stream.
 				// Try to play the next.
+				log.Println("WARNING: empty stream URL")
 				p.nextVideo(ps)
 				return
 			}
