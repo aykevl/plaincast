@@ -50,13 +50,15 @@ func (p *MediaPlayer) getPosition(ps *PlayState) time.Duration {
 		position = 0
 	case STATE_BUFFERING:
 		position = ps.bufferingPosition
-	default:
+	case STATE_PLAYING, STATE_PAUSED:
 		var err error
 		position, err = p.player.getPosition()
 		if err != nil {
 			// TODO: the position might be unavailable just after a seek
 			panic(err)
 		}
+	default:
+		panic("unknown state")
 	}
 
 	if position < 0 {

@@ -13,8 +13,9 @@ import (
 )
 
 const pythonGrabber = `
-from youtube_dl import YoutubeDL
 import sys
+from youtube_dl import YoutubeDL
+from youtube_dl.utils import DownloadError
 
 if len(sys.argv) != 2:
     sys.stderr.write('provide one argument with the format string')
@@ -28,14 +29,22 @@ yt = YoutubeDL({
 
 sys.stderr.write('YouTube-DL started.\n')
 
-try:
-    while True:
+while True:
+    stream = ''
+    try:
         url = raw_input()
-        info = yt.extract_info(url, ie_key='Youtube')
-        sys.stdout.write(info['url'] + '\n')
-        sys.stdout.flush()
-except (KeyboardInterrupt, EOFError):
-    pass
+        stream = yt.extract_info(url, ie_key='Youtube')['url']
+    except (KeyboardInterrupt, EOFError, IOError):
+        pass
+    except DownloadError, why:
+        # error message has already been printed
+        sys.stderr.write('Could not extract video, try updating youtube-dl.\n')
+    finally:
+        try:
+            sys.stdout.write(stream + '\n')
+            sys.stdout.flush()
+        except:
+            pass
 `
 
 // First (mkv-container) audio only with 100+kbps, then video with audio
