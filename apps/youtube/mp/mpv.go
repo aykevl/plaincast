@@ -145,7 +145,13 @@ func (mpv *MPV) setOption(key string, format C.mpv_format, value unsafe.Pointer)
 
 // sendCommand sends a command to the libmpv player
 func (mpv *MPV) sendCommand(command []string) {
-	log.Println("MPV command:", command)
+	// Print command, but without the stream
+	cmd := make([]string, len(command))
+	copy(cmd, command)
+	if command[0] == "loadfile" {
+		cmd[1] = "<stream>"
+	}
+	log.Println("MPV command:", cmd)
 
 	cArray := C.makeCharArray(C.int(len(command) + 1))
 	if cArray == nil {

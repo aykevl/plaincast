@@ -299,7 +299,6 @@ func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 		proxyUrl += "?" + req.URL.RawQuery
 	}
 	proxyUrl = "https://" + proxyUrl[len("/proxy/"):]
-	log.Println("proxy", proxyUrl)
 
 	// client/proxied request
 	creq, err := http.NewRequest("GET", proxyUrl, nil)
