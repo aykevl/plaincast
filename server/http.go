@@ -292,8 +292,6 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 // serveProxy is a simple proxy that is being used by the mplayer2 player
 // backend, because it doesn't support SSL.
 func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
-	log.Println("http", req.Method, req.URL.Path)
-
 	proxyUrl := req.URL.Path
 	if req.URL.RawQuery != "" {
 		proxyUrl += "?" + req.URL.RawQuery
@@ -327,12 +325,11 @@ func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if resp.ContentLength >= 0 {
-		_, err = io.CopyN(w, resp.Body, resp.ContentLength)
+		// ignore errors
+		io.CopyN(w, resp.Body, resp.ContentLength)
 	} else {
-		_, err = io.Copy(w, resp.Body)
-	}
-	if err != nil {
-		log.Println("http proxy error:", err)
+		// ignore errors
+		io.Copy(w, resp.Body)
 	}
 }
 
