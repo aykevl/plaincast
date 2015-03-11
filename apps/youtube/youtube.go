@@ -48,6 +48,7 @@ type YouTube struct {
 	runQuit          chan struct{}
 	uuid             string
 	loungeToken      string
+	sendMutex        sync.Mutex
 	sid              string
 	gsessionid       string
 	aid              int32 // int32 is thread-safe on ARM and Intel processors
@@ -148,7 +149,6 @@ func (yt *YouTube) init(arguments url.Values, stateChange chan mp.StateChange) {
 	}
 	yt.incomingMessages = make(chan incomingMessage, 5)
 	yt.outgoingMessages = make(chan outgoingMessage, 5)
-	yt.aid = -1
 
 	// This is a goroutine that receives messages from YouTube and starts a
 	// goroutine to send messages to YouTube.
@@ -389,21 +389,58 @@ func (yt *YouTube) getScreenId() string {
 	return screenId
 }
 
-func (yt *YouTube) bind() {
+func (yt *YouTube) initialBind() bool {
+	yt.rid.Restart()
+
 	log.Println("Getting first batch of messages")
 	params := url.Values{
 		"count": []string{"0"},
 	}
+
+	var bindUrl string
 	// TODO more fields should be query-escaped
-	bindUrl := fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=%d&zx=%s",
-		yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.rid.Next(), zx())
+	if yt.sid == "" {
+		// first connection
+		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=%d&zx=%s",
+			yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.rid.Next(), zx())
+	} else {
+		// connection after a 400 Unknown SID error
+		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&OSID=%s&OAID=%d&VER=8&RID=%d&zx=%s",
+			yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, yt.aid, yt.rid.Next(), zx())
+	}
+
 	resp, err := http.PostForm(bindUrl, params)
 	if err != nil {
-		panic(err)
+		fmt.Println("ERROR:", err)
+		yt.Quit()
+		return true
 	}
+
+	if resp.StatusCode != 200 {
+		log.Println("HTTP error while connecting to message channel:", resp.Status)
+
+		// most likely the YouTube server gives back an error in HTML form
+		buf, err := ioutil.ReadAll(resp.Body)
+		handle(err, "error while reading error message")
+		log.Printf("Response body:\n%s\n\n", string(buf))
+
+		yt.Quit()
+		return true
+	}
+
+	yt.aid = -1
 
 	if yt.handleMessageStream(resp, true) {
 		// YouTube closed while connecting
+		return true
+	}
+
+	return false
+}
+
+func (yt *YouTube) bind() {
+
+	if yt.initialBind() {
 		return
 	}
 
@@ -413,19 +450,37 @@ func (yt *YouTube) bind() {
 	go yt.sendMessages()
 
 	for {
-		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=rpc&SID=%s&CI=0&AID=%d&gsessionid=%s&TYPE=xmlhttp&zx=%s", yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, yt.aid, yt.gsessionid, zx())
+		yt.sendMutex.Lock()
+		aid := yt.aid
+		yt.sendMutex.Unlock()
+
+		bindUrl := fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=rpc&SID=%s&CI=0&AID=%d&gsessionid=%s&TYPE=xmlhttp&zx=%s", yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, aid, yt.gsessionid, zx())
 
 		timeBeforeGet := time.Now()
 
-		resp, err = http.Get(bindUrl)
+		resp, err := http.Get(bindUrl)
 		if err != nil {
 			log.Println("ERROR:", err)
 			yt.Quit()
 			break
 		}
 
-		if resp.StatusCode != 200 {
-			log.Println("HTTP error while connecting to message channel:", resp.StatusCode)
+
+		if resp.Status == "400 Unknown SID" {
+			log.Println("error:", resp.Status, "error, reconnecting the message channel...")
+			// Restart the Channel API connection
+
+			yt.sendMutex.Lock()
+			if yt.initialBind() {
+				yt.sendMutex.Unlock()
+				return
+			}
+			yt.sendMutex.Unlock()
+
+			continue
+
+		} else if resp.StatusCode != 200 {
+			log.Println("HTTP error while connecting to message channel:", resp.Status)
 
 			// most likely the YouTube server gives back an error in HTML form
 			buf, err := ioutil.ReadAll(resp.Body)
@@ -615,8 +670,10 @@ func (yt *YouTube) sendMessages() {
 
 			timeBeforeSend := time.Now()
 
+			yt.sendMutex.Lock()
 			_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
 				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, yt.rid.Next(), yt.aid, yt.gsessionid, zx()), values)
+			yt.sendMutex.Unlock()
 			if err != nil {
 				log.Println("ERROR: could not send message:", err)
 				yt.Quit()
