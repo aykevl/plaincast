@@ -35,7 +35,7 @@ while True:
         url = raw_input()
         stream = yt.extract_info(url, ie_key='Youtube')['url']
     except (KeyboardInterrupt, EOFError, IOError):
-        pass
+        break
     except DownloadError, why:
         # error message has already been printed
         sys.stderr.write('Could not extract video, try updating youtube-dl.\n')
