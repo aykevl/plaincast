@@ -551,14 +551,15 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 	message := incomingMessage{}
 	message.index = int(rawMessage[0].(float64))
 
-	if message.index <= int(yt.aid) {
-		log.Println("old command:", message.index, message.command, message.args)
-		return false
+	if message.index != int(yt.aid+1) {
+		if message.index <= int(yt.aid) {
+			log.Println("WARNING: old command:", message.index, message.command, message.args)
+			return false
+		} else {
+			log.Printf("WARNING: missing some messages, message number=%d, expected number=%d", message.index, yt.aid)
+		}
 	}
-	yt.aid++
-	if message.index != int(yt.aid) {
-		panic("missing some messages, message number=" + strconv.Itoa(message.index))
-	}
+	yt.aid = int32(message.index)
 
 	message.command = rawMessage[1].([]interface{})[0].(string)
 
