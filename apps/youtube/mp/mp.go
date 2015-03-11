@@ -15,6 +15,7 @@ const (
 	STATE_PLAYING         = 1
 	STATE_PAUSED          = 2
 	STATE_BUFFERING       = 3
+	STATE_SEEKING         = 4 // not in the YouTube API
 )
 
 // PlayState defines the current state of the generic MediaPlayer.
@@ -28,7 +29,9 @@ type PlayState struct {
 	State             State
 	Volume            int
 	bufferingPosition time.Duration
-	newVolume         bool // true if the Volume property must be reapplied to the player
+	newVolume         bool  // true if the Volume property must be reapplied to the player
+	previousState     State // state before current state
+	nextState         State // state after buffering
 }
 
 // Video returns the current video, or an empty string if there is no current

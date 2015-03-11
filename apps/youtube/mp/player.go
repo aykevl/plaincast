@@ -48,7 +48,7 @@ func (p *MediaPlayer) getPosition(ps *PlayState) time.Duration {
 	switch ps.State {
 	case STATE_STOPPED:
 		position = 0
-	case STATE_BUFFERING:
+	case STATE_BUFFERING, STATE_SEEKING:
 		position = ps.bufferingPosition
 	case STATE_PLAYING, STATE_PAUSED:
 		var err error
@@ -200,9 +200,14 @@ func (p *MediaPlayer) prefetchVideoStream(videoId string) {
 // setPlayState updates the PlayState and sends events.
 // position may be -1: in that case it will be updated.
 func (p *MediaPlayer) setPlayState(ps *PlayState, state State, position time.Duration) {
+	if ps.State == STATE_SEEKING {
+		position = ps.bufferingPosition
+	}
+
+	ps.previousState = ps.State
 	ps.State = state
 
-	if state == STATE_BUFFERING {
+	if state == STATE_BUFFERING || state == STATE_SEEKING {
 		ps.bufferingPosition = position
 	} else {
 		ps.bufferingPosition = -1
@@ -305,7 +310,9 @@ func (p *MediaPlayer) RequestPlaylist(playlistChan chan PlaylistState) {
 // Pause pauses the currently playing video
 func (p *MediaPlayer) Pause() {
 	p.getPlayState(func(ps *PlayState) {
-		if ps.State != STATE_PLAYING {
+		if ps.State == STATE_SEEKING {
+			ps.nextState = STATE_PAUSED
+		} else if ps.State != STATE_PLAYING {
 			log.Printf("Warning: pause while in state %d - ignoring\n", ps.State)
 		} else {
 			p.player.pause()
@@ -319,6 +326,9 @@ func (p *MediaPlayer) Play() {
 		if ps.State == STATE_STOPPED {
 			// Restart from the beginning.
 			p.startPlaying(ps, 0)
+
+		} else if ps.State == STATE_SEEKING {
+			ps.nextState = STATE_PLAYING
 
 		} else {
 			if ps.State != STATE_PAUSED {
@@ -334,6 +344,7 @@ func (p *MediaPlayer) Play() {
 func (p *MediaPlayer) Seek(position time.Duration) {
 	p.getPlayState(func(ps *PlayState) {
 		if ps.State == STATE_PAUSED || ps.State == STATE_PLAYING {
+			p.setPlayState(ps, STATE_SEEKING, position)
 			p.player.setPosition(position)
 		} else {
 			log.Printf("Warning: state is not paused or playing while seeking (state: %d) - ignoring\n", ps.State)
@@ -405,8 +416,8 @@ func (p *MediaPlayer) Stop() {
 // events.
 func (p *MediaPlayer) run(playerEventChan chan State, initialVolume int) {
 	ps := PlayState{}
-
 	ps.Volume = initialVolume
+	ps.nextState = -1
 
 	for {
 		select {
@@ -428,6 +439,27 @@ func (p *MediaPlayer) run(playerEventChan chan State, initialVolume int) {
 				if ps.newVolume {
 					ps.newVolume = false
 					p.player.setVolume(ps.Volume)
+				}
+
+				if ps.State == STATE_SEEKING {
+					if ps.nextState != -1 && ps.previousState != ps.nextState {
+						ps.State = ps.previousState
+
+						state := ps.nextState
+						ps.nextState = -1
+
+						switch state {
+						case STATE_PLAYING:
+							p.player.resume()
+						case STATE_PAUSED:
+							p.player.pause()
+						default:
+							panic("unknown nextState")
+						}
+					} else {
+						p.setPlayState(&ps, ps.previousState, -1)
+					}
+					break
 				}
 
 				p.setPlayState(&ps, STATE_PLAYING, -1)

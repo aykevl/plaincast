@@ -327,6 +327,12 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 				}
 				yt.mpMutex.Unlock()
 			}
+
+			if change.State == mp.STATE_SEEKING {
+				// YouTube only knows buffering, not seeking
+				change.State = mp.STATE_BUFFERING
+			}
+
 			yt.outgoingMessages <- outgoingMessage{"onStateChange", map[string]string{"currentTime": strconv.FormatFloat(change.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(change.State))}}
 
 		case volume := <-volumeChan:
