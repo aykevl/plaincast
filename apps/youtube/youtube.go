@@ -100,7 +100,8 @@ func (yt *YouTube) FriendlyName() string {
 // Attaches a new device if the app has already started.
 func (yt *YouTube) Start(postData string) {
 	yt.runningMutex.Lock()
-	defer yt.runningMutex.Unlock()
+	running := yt.running
+	yt.runningMutex.Unlock()
 
 	arguments, err := url.ParseQuery(postData)
 	// TODO proper error handling
@@ -108,7 +109,7 @@ func (yt *YouTube) Start(postData string) {
 		panic(err)
 	}
 
-	if yt.running {
+	if running {
 		// Only use `pairingCode`, ignore `v` and `t` arguments.
 		yt.pairingCodes <- arguments["pairingCode"][0]
 
@@ -176,7 +177,10 @@ func (yt *YouTube) init(arguments url.Values, stateChange chan mp.StateChange) {
 }
 
 func (yt *YouTube) start(arguments url.Values) {
+	yt.runningMutex.Lock()
+	defer yt.runningMutex.Unlock()
 	yt.running = true
+
 	// Of all values, this one should not be initialized inside a goroutine
 	// because that's a race condition.
 	yt.pairingCodes = make(chan string)
@@ -576,8 +580,9 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 	}
 
 	yt.runningMutex.Lock()
-	defer yt.runningMutex.Unlock()
-	if !yt.running {
+	running := yt.running
+	yt.runningMutex.Unlock()
+	if !running {
 		return true
 	}
 
