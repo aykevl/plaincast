@@ -671,14 +671,28 @@ func (yt *YouTube) sendMessages() {
 
 			timeBeforeSend := time.Now()
 
-			yt.sendMutex.Lock()
-			_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
-				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, yt.rid.Next(), yt.aid, yt.gsessionid, zx()), values)
-			yt.sendMutex.Unlock()
-			if err != nil {
-				log.Println("ERROR: could not send message:", err)
-				yt.Quit()
-				return
+			retries := 0
+			for {
+				yt.sendMutex.Lock()
+				_, err := httpPostFormBody(fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&SID=%s&RID=%d&AID=%d&gsessionid=%s&zx=%s",
+					yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, yt.rid.Next(), yt.aid, yt.gsessionid, zx()), values)
+				yt.sendMutex.Unlock()
+
+				if err != nil {
+					retries++
+					retryTimeout := time.Duration(retries*retries) * 500 * time.Millisecond
+					if retries > 4 {
+						log.Println("ERROR: could not send message, giving up:", err)
+						yt.Quit()
+						return
+					}
+					log.Printf("ERROR: could not send message, retrying in %s: %s", retryTimeout, err)
+					time.Sleep(retryTimeout)
+					continue
+				}
+
+				retries = 0
+				break
 			}
 
 			prepareLatency := timeBeforeSend.Sub(deadline) / time.Millisecond * time.Millisecond
