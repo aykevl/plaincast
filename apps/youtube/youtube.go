@@ -333,11 +333,14 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 			yt.outgoingMessages <- outgoingMessage{"onVolumeChanged", map[string]string{"volume": strconv.Itoa(volume), "muted": "false"}}
 
 		case ps := <-playlistChan:
+			message := outgoingMessage{"nowPlayingPlaylist", map[string]string{}}
 			if len(ps.Playlist) > 0 {
-				yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{"video_ids": strings.Join(ps.Playlist, ","), "video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
-			} else {
-				yt.outgoingMessages <- outgoingMessage{"nowPlayingPlaylist", map[string]string{}}
+				message.args["video_ids"] = strings.Join(ps.Playlist, ",")
+				message.args["video_id"] = ps.Playlist[ps.Index]
+				message.args["current_time"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
+				message.args["state"] = strconv.Itoa(int(ps.State))
 			}
+			yt.outgoingMessages <- message
 		case ps := <-nowPlayingChan:
 			if len(ps.Playlist) > 0 {
 				yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{"video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
