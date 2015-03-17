@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"flag"
 	"io"
 	"log"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"text/template"
+	"time"
 
 	"github.com/aykevl93/plaincast/apps"
 	"github.com/aykevl93/plaincast/apps/youtube"
@@ -18,6 +20,8 @@ import (
 
 // This implements a UPnP/DIAL server.
 // DIAL is deprecated, but it's still being used by the YouTube app on Android.
+
+var flagHTTPPort = flag.Int("http-port", 8008, "default http port (0=available)")
 
 // UPnP device description template
 const DEVICE_DESCRIPTION = `<?xml version="1.0"?>
@@ -333,11 +337,11 @@ func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// partially copied from net/http sources
+// Partially copied from net/http sources.
+// We do it ourselves to be able to let the server run on a random (0) port, and
+// know which port the server runs on.
 func serveZeroHTTPPort(handler http.Handler) (int, error) {
-	// TODO: use a random port by binding to port 0.
-	// Any port can be used by DIAL.
-	server := &http.Server{Addr: ":8008", Handler: handler}
+	server := &http.Server{Addr: ":"+strconv.Itoa(*flagHTTPPort), Handler: nil}
 
 	ln, err := net.Listen("tcp", server.Addr)
 	if err != nil {
