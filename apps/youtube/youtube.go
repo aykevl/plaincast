@@ -260,6 +260,7 @@ func (yt *YouTube) run(arguments url.Values) {
 			case "updatePlaylist":
 				playlist := strings.Split(message.args["videoIds"], ",")
 				yt.mp.UpdatePlaylist(playlist)
+				yt.outgoingMessages <- outgoingMessage{"confirmPlaylistUpdate", map[string]string{"updated": "true"}}
 			case "setVideo":
 				videoId := message.args["videoId"]
 				position, err := time.ParseDuration(message.args["currentTime"] + "s")
@@ -346,17 +347,23 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 			message := outgoingMessage{"nowPlayingPlaylist", map[string]string{}}
 			if len(ps.Playlist) > 0 {
 				message.args["video_ids"] = strings.Join(ps.Playlist, ",")
-				message.args["video_id"] = ps.Playlist[ps.Index]
-				message.args["current_time"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
+				message.args["videoId"] = ps.Playlist[ps.Index]
+				message.args["currentTime"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
 				message.args["state"] = strconv.Itoa(int(ps.State))
+				message.args["currentIndex"] = strconv.Itoa(ps.Index)
+				// missing: listId
 			}
 			yt.outgoingMessages <- message
 		case ps := <-nowPlayingChan:
+			message := outgoingMessage{"nowPlaying", map[string]string{}}
 			if len(ps.Playlist) > 0 {
-				yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{"video_id": ps.Playlist[ps.Index], "current_time": strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(ps.State))}}
-			} else {
-				yt.outgoingMessages <- outgoingMessage{"nowPlaying", map[string]string{}}
+				message.args["videoId"] = ps.Playlist[ps.Index]
+				message.args["currentTime"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
+				message.args["state"] = strconv.Itoa(int(ps.State))
+				message.args["currentIndex"] = strconv.Itoa(ps.Index)
+				// missing: listId
 			}
+			yt.outgoingMessages <- message
 		}
 	}
 }
