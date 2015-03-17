@@ -16,6 +16,7 @@ import "unsafe"
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"strconv"
@@ -35,6 +36,8 @@ type MPV struct {
 	runningMutex sync.Mutex
 	mainloopExit chan struct{}
 }
+
+var logLibMPV = flag.Bool("log-libmpv", false, "log output of libmpv")
 
 // New creates a new MPV instance and initializes the libmpv player
 func (mpv *MPV) initialize() (chan State, int) {
@@ -71,8 +74,11 @@ func (mpv *MPV) initialize() (chan State, int) {
 	mpv.setOptionInt("cache-default", 160) // 10 seconds
 	mpv.setOptionInt("cache-seek-min", 16) // 1 second
 
-	// some extra debugging information, but don't read from stdin
-	mpv.setOptionFlag("terminal", false)
+	// Some extra debugging information, but don't read from stdin.
+	// libmpv has a problem with signal handling, though: when `terminal` is
+	// true, Ctrl+C doesn't work correctly anymore and program output is
+	// disabled.
+	mpv.setOptionFlag("terminal", *logLibMPV)
 	mpv.setOptionFlag("no-input-terminal", true)
 	mpv.setOptionFlag("quiet", true)
 
