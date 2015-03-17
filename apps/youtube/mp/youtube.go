@@ -13,38 +13,42 @@ import (
 )
 
 const pythonGrabber = `
-import sys
-from youtube_dl import YoutubeDL
-from youtube_dl.utils import DownloadError
+try:
+    import sys
+    from youtube_dl import YoutubeDL
+    from youtube_dl.utils import DownloadError
 
-if len(sys.argv) != 2:
-    sys.stderr.write('provide one argument with the format string')
-    os.exit(1)
+    if len(sys.argv) != 2:
+        sys.stderr.write('provide one argument with the format string')
+        os.exit(1)
 
-yt = YoutubeDL({
-    'geturl': True,
-    'format': sys.argv[1],
-    'quiet': True,
-    'simulate': True})
+    yt = YoutubeDL({
+        'geturl': True,
+        'format': sys.argv[1],
+        'quiet': True,
+        'simulate': True})
 
-sys.stderr.write('YouTube-DL started.\n')
+    sys.stderr.write('YouTube-DL started.\n')
 
-while True:
-    stream = ''
-    try:
-        url = raw_input()
-        stream = yt.extract_info(url, ie_key='Youtube')['url']
-    except (KeyboardInterrupt, EOFError, IOError):
-        break
-    except DownloadError, why:
-        # error message has already been printed
-        sys.stderr.write('Could not extract video, try updating youtube-dl.\n')
-    finally:
+    while True:
+        stream = ''
         try:
-            sys.stdout.write(stream + '\n')
-            sys.stdout.flush()
-        except:
-            pass
+            url = raw_input()
+            stream = yt.extract_info(url, ie_key='Youtube')['url']
+        except (KeyboardInterrupt, EOFError, IOError):
+            break
+        except DownloadError, why:
+            # error message has already been printed
+            sys.stderr.write('Could not extract video, try updating youtube-dl.\n')
+        finally:
+            try:
+                sys.stdout.write(stream + '\n')
+                sys.stdout.flush()
+            except:
+                pass
+
+except (KeyboardInterrupt, EOFError, IOError):
+    pass
 `
 
 // First (mkv-container) audio only with 100+kbps, then video with audio
