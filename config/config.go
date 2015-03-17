@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"io/ioutil"
 	"log"
 	"os"
@@ -23,6 +24,8 @@ type Config struct {
 var config *Config
 
 const CONFIG_FILENAME = ".config/plaincast.json"
+
+var disableConfig = flag.Bool("disable-config", false, "disable reading from and writing to config file")
 
 // Get returns a global Config instance.
 // It may be called multiple times: the same object will be returned each time.
@@ -45,6 +48,11 @@ func Get() *Config {
 func newConfig(path string) *Config {
 	c := &Config{}
 	c.data = make(map[string]interface{})
+
+	if *disableConfig {
+		return c
+	}
+
 	c.path = path
 	c.saveChan = make(chan struct{}, 1)
 
@@ -123,6 +131,10 @@ func (c *Config) SetInt(key string, value int) {
 }
 
 func (c *Config) save() {
+	if *disableConfig {
+		return
+	}
+
 	// Make sure this function cannot be executed multiple times at the same
 	// moment.
 	c.saveChanMutex.Lock()
