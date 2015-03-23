@@ -346,7 +346,7 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 		case ps := <-playlistChan:
 			message := outgoingMessage{"nowPlayingPlaylist", map[string]string{}}
 			if len(ps.Playlist) > 0 {
-				message.args["video_ids"] = strings.Join(ps.Playlist, ",")
+				message.args["videoIds"] = strings.Join(ps.Playlist, ",")
 				message.args["videoId"] = ps.Playlist[ps.Index]
 				message.args["currentTime"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
 				message.args["state"] = strconv.Itoa(int(ps.State))
