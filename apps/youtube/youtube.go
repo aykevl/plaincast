@@ -329,6 +329,7 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 				close(yt.outgoingMessages)
 				return
 			}
+
 			if change.State == mp.STATE_BUFFERING || change.State == mp.STATE_STOPPED {
 				// Only access yt.mp when it is certain it isn't being quit.
 				// yt.mp is nil when it is being stopped.
@@ -344,10 +345,16 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 				change.State = mp.STATE_BUFFERING
 			}
 
-			yt.outgoingMessages <- outgoingMessage{"onStateChange", map[string]string{"currentTime": strconv.FormatFloat(change.Position.Seconds(), 'f', 3, 64), "state": strconv.Itoa(int(change.State))}}
+			yt.outgoingMessages <- outgoingMessage{"onStateChange", map[string]string{
+				"currentTime": strconv.FormatFloat(change.Position.Seconds(), 'f', 3, 64),
+				"state":       strconv.Itoa(int(change.State)),
+			}}
 
 		case volume := <-volumeChan:
-			yt.outgoingMessages <- outgoingMessage{"onVolumeChanged", map[string]string{"volume": strconv.Itoa(volume), "muted": "false"}}
+			yt.outgoingMessages <- outgoingMessage{"onVolumeChanged", map[string]string{
+				"volume": strconv.Itoa(volume),
+				"muted":  "false",
+			}}
 
 		case ps := <-playlistChan:
 			message := outgoingMessage{"nowPlayingPlaylist", map[string]string{}}
@@ -357,7 +364,7 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 				message.args["currentTime"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
 				message.args["state"] = strconv.Itoa(int(ps.State))
 				message.args["currentIndex"] = strconv.Itoa(ps.Index)
-				// missing: listId
+				//message.args["listId"] = ""
 			}
 			yt.outgoingMessages <- message
 		case ps := <-nowPlayingChan:
@@ -367,7 +374,7 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 				message.args["currentTime"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
 				message.args["state"] = strconv.Itoa(int(ps.State))
 				message.args["currentIndex"] = strconv.Itoa(ps.Index)
-				// missing: listId
+				//message.args["listId"] = ""
 			}
 			yt.outgoingMessages <- message
 		}
@@ -387,7 +394,7 @@ func (yt *YouTube) connect() {
 	}
 	response, err := httpPostFormBody("https://www.youtube.com/api/lounge/pairing/get_lounge_token_batch", params)
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	loungeTokenBatch := loungeTokenBatchJson{}
 	json.Unmarshal(response, &loungeTokenBatch)
@@ -406,7 +413,7 @@ func (yt *YouTube) getScreenId() string {
 	})
 	if err != nil {
 		// TODO use proper error handling
-		panic(err)
+		log.Panic(err)
 	}
 
 	return screenId

@@ -341,7 +341,7 @@ func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 // We do it ourselves to be able to let the server run on a random (0) port, and
 // know which port the server runs on.
 func serveZeroHTTPPort(handler http.Handler) (int, error) {
-	server := &http.Server{Addr: ":"+strconv.Itoa(*flagHTTPPort), Handler: nil}
+	server := &http.Server{Addr: ":" + strconv.Itoa(*flagHTTPPort), Handler: nil}
 
 	ln, err := net.Listen("tcp", server.Addr)
 	if err != nil {
