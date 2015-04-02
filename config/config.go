@@ -25,7 +25,7 @@ var config *Config
 
 const CONFIG_FILENAME = ".config/plaincast.json"
 
-var disableConfig = flag.Bool("disable-config", false, "disable reading from and writing to config file")
+var disableConfig = flag.Bool("no-config", false, "disable reading from and writing to config file")
 
 // Get returns a global Config instance.
 // It may be called multiple times: the same object will be returned each time.
