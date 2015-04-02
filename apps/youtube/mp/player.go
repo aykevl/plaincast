@@ -347,7 +347,9 @@ func (p *MediaPlayer) Play() {
 // Seek jumps to the specified position
 func (p *MediaPlayer) Seek(position time.Duration) {
 	p.getPlayState(func(ps *PlayState) {
-		if ps.State == STATE_PAUSED || ps.State == STATE_PLAYING {
+		if ps.State == STATE_STOPPED {
+			p.startPlaying(ps, position)
+		} else if ps.State == STATE_PAUSED || ps.State == STATE_PLAYING {
 			p.setPlayState(ps, STATE_SEEKING, position)
 			p.player.setPosition(position)
 		} else {
