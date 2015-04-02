@@ -468,6 +468,15 @@ func (p *MediaPlayer) run(playerEventChan chan State, initialVolume int) {
 					break
 				}
 
+				if ps.State == STATE_STOPPED {
+					// MPV sometimes sends an 'unpause' event after it has been
+					// stopped, when setting pause=no right before it finishes
+					// the stream.
+					// Ignore this event to prevent a panic (property
+					// unavailable while trying to get the position).
+					break
+				}
+
 				p.setPlayState(&ps, STATE_PLAYING, -1)
 
 			case STATE_PAUSED:
