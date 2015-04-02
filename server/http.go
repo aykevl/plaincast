@@ -122,12 +122,12 @@ func (us *UPnPServer) startServing() (int, error) {
 		return 0, errors.New("already serving")
 	}
 
-	httpPort, err := serveZeroHTTPPort(nil)
+	port, err := serve()
 	if err != nil {
 		return 0, err
 	}
 
-	us.httpPort = httpPort
+	us.httpPort = port
 
 	return us.httpPort, nil
 }
@@ -337,10 +337,25 @@ func (us *UPnPServer) serveProxy(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// copied from net/http/server.go, but modified the Keep-Alive period
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
+		return
+	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(5 * time.Second)
+	return tc, nil
+}
+
 // Partially copied from net/http sources.
 // We do it ourselves to be able to let the server run on a random (0) port, and
 // know which port the server runs on.
-func serveZeroHTTPPort(handler http.Handler) (int, error) {
+func serve() (int, error) {
 	server := &http.Server{Addr: ":" + strconv.Itoa(*flagHTTPPort), Handler: nil}
 
 	ln, err := net.Listen("tcp", server.Addr)
@@ -348,14 +363,14 @@ func serveZeroHTTPPort(handler http.Handler) (int, error) {
 		return 0, err
 	}
 
-	httpPort := ln.Addr().(*net.TCPAddr).Port
-	server.Addr = ":" + strconv.Itoa(httpPort)
+	port := ln.Addr().(*net.TCPAddr).Port
+	server.Addr = ":" + strconv.Itoa(port)
 
 	go func() {
-		err := server.Serve(ln.(*net.TCPListener))
+		err := server.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
 		// should only be reachable in case of an error
 		panic(err)
 	}()
 
-	return httpPort, nil
+	return port, nil
 }
