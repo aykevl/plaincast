@@ -325,6 +325,10 @@ func (p *MediaPlayer) Play() {
 	p.getPlayState(func(ps *PlayState) {
 		if ps.State == STATE_STOPPED {
 			// Restart from the beginning.
+			if ps.Index >= len(ps.Playlist) {
+				log.Println("Warning: invalid index or empty playlist")
+				return
+			}
 			p.startPlaying(ps, 0)
 
 		} else if ps.State == STATE_SEEKING {
