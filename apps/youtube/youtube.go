@@ -205,7 +205,13 @@ func (yt *YouTube) run(arguments url.Values) {
 	for {
 		select {
 		case message := <-yt.incomingMessages:
-			log.Println("command:", message.index, message.command, message.args)
+
+			// Only print a message for less-verbose output.
+			switch message.command {
+			case "remoteConnected", "remoteDisconnected", "loungeStatus":
+			default:
+				log.Println("command:", message.index, message.command, message.args)
+			}
 
 			switch message.command {
 			case "remoteConnected":
