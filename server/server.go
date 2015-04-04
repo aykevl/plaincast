@@ -2,6 +2,7 @@ package server
 
 import (
 	"log"
+	"flag"
 
 	"github.com/nu7hatch/gouuid"
 )
@@ -14,6 +15,8 @@ const (
 )
 
 var deviceUUID *uuid.UUID
+
+var disableSSDP = flag.Bool("no-ssdp", false, "disable SSDP broadcast")
 
 func Serve() {
 	var err error
@@ -29,5 +32,10 @@ func Serve() {
 	}
 	log.Println("serving HTTP on port", httpPort)
 
-	serveSSDP(httpPort)
+	if !*disableSSDP {
+		serveSSDP(httpPort)
+	} else {
+		// wait forever
+		select {}
+	}
 }
