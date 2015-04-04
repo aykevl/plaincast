@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"math/rand"
 	"net"
 	"net/mail"
@@ -64,7 +63,7 @@ func serveSSDP(httpPort int) {
 func serveSSDPResponse(msg *mail.Message, raddr *net.UDPAddr, httpPort int) {
 	mx, err := strconv.Atoi(msg.Header.Get("MX"))
 	if err != nil {
-		log.Println(err)
+		logger.Warnln("could  not parse MX header:", err)
 		return
 	}
 

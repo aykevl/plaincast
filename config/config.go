@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -174,6 +174,7 @@ func (c *Config) saveTask() {
 
 func handle(err error, message string) {
 	if err != nil {
-		log.Fatalf("%s: %s\n", message, err)
+		fmt.Printf("ERROR: %s: %s\n", message, err)
+		os.Exit(1)
 	}
 }

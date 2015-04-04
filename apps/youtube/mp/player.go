@@ -1,7 +1,6 @@
 package mp
 
 import (
-	"log"
 	"time"
 )
 
@@ -131,14 +130,14 @@ func (p *MediaPlayer) startPlaying(ps *PlayState, position time.Duration) {
 			// one may be played while the URL for another is still being
 			// fetched.
 			if ps.Video() != videoId {
-				log.Printf("Video %s isn't needed anymore\n", videoId)
+				// stale video
 				return
 			}
 
 			if streamUrl == "" {
 				// Failed to get a stream.
 				// Try to play the next.
-				log.Println("WARNING: empty stream URL")
+				logger.Warnln("empty stream URL (error?)")
 				p.nextVideo(ps)
 				return
 			}
@@ -265,7 +264,7 @@ func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string) {
 	for i, v := range ps.Playlist {
 		if v == videoId {
 			if newIndex >= 0 {
-				log.Println("WARNING: videoId exists twice in playlist")
+				logger.Warnln("videoId exists twice in playlist")
 				break
 			}
 			newIndex = i
@@ -313,7 +312,9 @@ func (p *MediaPlayer) Pause() {
 		if ps.State == STATE_SEEKING {
 			ps.nextState = STATE_PAUSED
 		} else if ps.State != STATE_PLAYING {
-			log.Printf("Warning: pause while in state %d - ignoring\n", ps.State)
+			// This is a Printf and not a Warnf because this occurs often in
+			// practice when seeking and is harmless in that case.
+			logger.Printf("pause while in state %d - ignoring\n", ps.State)
 		} else {
 			p.player.pause()
 		}
@@ -326,7 +327,7 @@ func (p *MediaPlayer) Play() {
 		if ps.State == STATE_STOPPED {
 			// Restart from the beginning.
 			if ps.Index >= len(ps.Playlist) {
-				log.Println("Warning: invalid index or empty playlist")
+				logger.Warnln("invalid index or empty playlist")
 				return
 			}
 			p.startPlaying(ps, 0)
@@ -336,7 +337,7 @@ func (p *MediaPlayer) Play() {
 
 		} else {
 			if ps.State != STATE_PAUSED {
-				log.Printf("Warning: resume while in state %d - ignoring\n", ps.State)
+				logger.Warnf("resume while in state %d - ignoring\n", ps.State)
 			} else {
 				p.player.resume()
 			}
@@ -353,7 +354,7 @@ func (p *MediaPlayer) Seek(position time.Duration) {
 			p.setPlayState(ps, STATE_SEEKING, position)
 			p.player.setPosition(position)
 		} else {
-			log.Printf("Warning: state is not paused or playing while seeking (state: %d) - ignoring\n", ps.State)
+			logger.Warnf("state is not paused or playing while seeking (state: %d) - ignoring\n", ps.State)
 		}
 	})
 }

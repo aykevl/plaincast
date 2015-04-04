@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,8 +15,11 @@ import (
 
 	"github.com/aykevl93/plaincast/apps/youtube/mp"
 	"github.com/aykevl93/plaincast/config"
+	"github.com/aykevl93/plaincast/log"
 	"github.com/nu7hatch/gouuid"
 )
+
+var logger = log.New("youtube", "log YouTube app")
 
 // # Preventing race conditions & leaks
 //
@@ -189,8 +191,6 @@ func (yt *YouTube) start(arguments url.Values) {
 }
 
 func (yt *YouTube) run(arguments url.Values) {
-	log.Println("running YouTube")
-
 	stateChange := make(chan mp.StateChange)
 	volumeChan := make(chan int, 1)
 	playlistChan := make(chan mp.PlaylistState)
@@ -210,14 +210,14 @@ func (yt *YouTube) run(arguments url.Values) {
 			switch message.command {
 			case "remoteConnected", "remoteDisconnected", "loungeStatus":
 			default:
-				log.Println("command:", message.index, message.command, message.args)
+				logger.Println("command:", message.index, message.command, message.args)
 			}
 
 			switch message.command {
 			case "remoteConnected":
-				log.Printf("Remote connected: %s (%s)\n", message.args["name"], message.args["user"])
+				logger.Printf("Remote connected: %s (%s)\n", message.args["name"], message.args["user"])
 			case "remoteDisconnected":
-				log.Printf("Remote disconnected: %s (%s)\n", message.args["name"], message.args["user"])
+				logger.Printf("Remote disconnected: %s (%s)\n", message.args["name"], message.args["user"])
 			case "loungeStatus":
 				// pass
 				break
@@ -228,14 +228,14 @@ func (yt *YouTube) run(arguments url.Values) {
 				if ok {
 					delta, err := strconv.Atoi(delta)
 					if err != nil {
-						log.Println("WARNING: volume delta could not be parsed:", err)
+						logger.Warnln("volume delta could not be parsed:", err)
 						break
 					}
 					yt.mp.ChangeVolume(delta, volumeChan)
 				} else {
 					volume, err := strconv.Atoi(message.args["volume"])
 					if err != nil {
-						log.Println("WARNING: volume could not be parsed:", err)
+						logger.Warnln("volume could not be parsed:", err)
 						break
 					}
 					yt.mp.SetVolume(volume, volumeChan)
@@ -247,18 +247,18 @@ func (yt *YouTube) run(arguments url.Values) {
 
 				index, err := strconv.Atoi(message.args["currentIndex"])
 				if err != nil {
-					log.Println("WARNING: currentIndex could not be parsed:", err)
+					logger.Warnln("currentIndex could not be parsed:", err)
 					break
 				}
 
 				position, err := time.ParseDuration(message.args["currentTime"] + "s")
 				if err != nil {
-					log.Println("WARNING: currentTime could not be parsed:", err)
+					logger.Warnln("currentTime could not be parsed:", err)
 					break
 				}
 
 				if index < 0 || len(playlist) == 0 || index >= len(playlist) {
-					log.Println("WARNING: setPlaylist got invalid parameters")
+					logger.Warnln("setPlaylist got invalid parameters")
 					break
 				}
 
@@ -271,7 +271,7 @@ func (yt *YouTube) run(arguments url.Values) {
 				videoId := message.args["videoId"]
 				position, err := time.ParseDuration(message.args["currentTime"] + "s")
 				if err != nil {
-					log.Println("WARNING: could not parse currentTime:", err)
+					logger.Warnln("could not parse currentTime:", err)
 					break
 				}
 
@@ -299,7 +299,7 @@ func (yt *YouTube) run(arguments url.Values) {
 			case "seekTo":
 				position, err := time.ParseDuration(message.args["newTime"] + "s")
 				if err != nil {
-					log.Println("WARNING: could not parse newTime for seekTo:", err)
+					logger.Warnln("could not parse newTime for seekTo:", err)
 					break
 				}
 				yt.mp.Seek(position)
@@ -388,13 +388,14 @@ func (yt *YouTube) Running() bool {
 }
 
 func (yt *YouTube) connect() {
-	log.Println("Getting lounge token batch...")
 	params := url.Values{
 		"screen_ids": []string{yt.getScreenId()},
 	}
+	logger.Println("Getting lounge token batch...")
 	response, err := httpPostFormBody("https://www.youtube.com/api/lounge/pairing/get_lounge_token_batch", params)
 	if err != nil {
-		log.Panic(err)
+		// TODO exit the app or something when this happens, don't panic
+		logger.Panic(err)
 	}
 	loungeTokenBatch := loungeTokenBatchJson{}
 	json.Unmarshal(response, &loungeTokenBatch)
@@ -407,13 +408,13 @@ func (yt *YouTube) connect() {
 
 func (yt *YouTube) getScreenId() string {
 	screenId, err := config.Get().GetString("apps.youtube.screenId", func() (string, error) {
-		log.Println("Getting screen_id...")
+		logger.Println("Getting screen_id...")
 		response, err := httpGetBody("https://www.youtube.com/api/lounge/pairing/generate_screen_id")
 		return string(response), err
 	})
 	if err != nil {
 		// TODO use proper error handling
-		log.Panic(err)
+		logger.Panic(err)
 	}
 
 	return screenId
@@ -422,7 +423,7 @@ func (yt *YouTube) getScreenId() string {
 func (yt *YouTube) initialBind() bool {
 	yt.rid.Restart()
 
-	log.Println("Getting first batch of messages")
+	logger.Println("Getting first batch of messages")
 	params := url.Values{
 		"count": []string{"0"},
 	}
@@ -441,18 +442,18 @@ func (yt *YouTube) initialBind() bool {
 
 	resp, err := http.PostForm(bindUrl, params)
 	if err != nil {
-		fmt.Println("ERROR:", err)
+		logger.Errln("could not connect to message channel:", err)
 		yt.Quit()
 		return true
 	}
 
 	if resp.StatusCode != 200 {
-		log.Println("HTTP error while connecting to message channel:", resp.Status)
+		logger.Errln("HTTP error while connecting to message channel:", resp.Status)
 
 		// most likely the YouTube server gives back an error in HTML form
 		buf, err := ioutil.ReadAll(resp.Body)
 		handle(err, "error while reading error message")
-		log.Printf("Response body:\n%s\n\n", string(buf))
+		logger.Errf("Response body:\n%s\n\n", string(buf))
 
 		yt.Quit()
 		return true
@@ -490,14 +491,13 @@ func (yt *YouTube) bind() {
 
 		resp, err := http.Get(bindUrl)
 		if err != nil {
-			log.Println("ERROR:", err)
+			logger.Errln(err)
 			yt.Quit()
 			break
 		}
 
-
 		if resp.Status == "400 Unknown SID" {
-			log.Println("error:", resp.Status, "error, reconnecting the message channel...")
+			logger.Println("error:", resp.Status, ". Reconnecting the message channel...")
 			// Restart the Channel API connection
 
 			yt.sendMutex.Lock()
@@ -510,19 +510,19 @@ func (yt *YouTube) bind() {
 			continue
 
 		} else if resp.StatusCode != 200 {
-			log.Println("HTTP error while connecting to message channel:", resp.Status)
+			logger.Errln("HTTP error while connecting to message channel:", resp.Status)
 
 			// most likely the YouTube server gives back an error in HTML form
 			buf, err := ioutil.ReadAll(resp.Body)
 			handle(err, "error while reading error message")
-			log.Printf("Response body:\n%s\n\n", string(buf))
+			logger.Errf("Response body:\n%s\n\n", string(buf))
 
 			yt.Quit()
 			break
 		}
 
 		latency := time.Now().Sub(timeBeforeGet) / time.Millisecond * time.Millisecond
-		log.Println("Connected to message channel in", latency)
+		logger.Println("Connected to message channel in", latency)
 
 		if yt.handleMessageStream(resp, false) {
 			break
@@ -543,10 +543,10 @@ func (yt *YouTube) handleMessageStream(resp *http.Response, singleBatch bool) bo
 				return false // try again
 			}
 
-			log.Printf("error: %s (line: %#v)\n", err, line)
+			logger.Printf("error: %s (line: %#v)\n", err, line)
 
 			// try again
-			log.Println("Trying to reconnect to message channel...")
+			logger.Println("Trying to reconnect to message channel...")
 			return false
 		}
 
@@ -583,10 +583,10 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 
 	if message.index != int(yt.aid+1) {
 		if message.index <= int(yt.aid) {
-			log.Println("WARNING: old command:", message.index, message.command, message.args)
+			logger.Warnln("old command:", message.index, message.command, message.args)
 			return false
 		} else {
-			log.Printf("WARNING: missing some messages, message number=%d, expected number=%d", message.index, yt.aid)
+			logger.Errf("missing some messages, message number=%d, expected number=%d", message.index, yt.aid)
 		}
 	}
 	yt.aid = int32(message.index)
@@ -611,23 +611,23 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 		// no-op, ignore
 	case "c":
 		if len(args) == 0 {
-			log.Println("WARNING: no argument")
+			logger.Warnln("no argument to 'c' command")
 			break
 		}
 		sid, ok := args[0].(string)
 		if !ok {
-			log.Println("WARNING: SID does not have the right type")
+			logger.Warnln("SID is not a string")
 		} else {
 			yt.sid = sid
 		}
 	case "S":
 		if len(args) == 0 {
-			log.Println("WARNING: no argument")
+			logger.Warnln("no argument to 'S' command")
 			break
 		}
 		gsessionid, ok := args[0].(string)
 		if !ok {
-			log.Println("WARNING: gsessionid does not have the right type")
+			logger.Warnln("gsessionid is not a string")
 		} else {
 			yt.gsessionid = gsessionid
 		}
@@ -636,13 +636,14 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 			// convert map[string]interface{} into map[string]string
 			argsMap, ok := args[0].(map[string]interface{})
 			if !ok {
-				log.Println("WARNING: message values are not a map", message.command)
+				logger.Warnln("message values are not a map", message.command)
 			}
 			message.args = make(map[string]string, len(argsMap))
 			for k, v := range argsMap {
-				message.args[k], ok = v.(string)
-				if !ok {
-					log.Println("WARNING: message", message.command, "does not have string value for key", k)
+				if s, ok := v.(string); !ok {
+					logger.Warnln("message", message.command, "does not have string value for key", k)
+				} else {
+					message.args[k] = s
 				}
 			}
 		}
@@ -697,7 +698,7 @@ func (yt *YouTube) sendMessages() {
 				for k, v := range message.args {
 					values.Set(req+k, v)
 				}
-				log.Println("send msg:", message.command, message.args)
+				logger.Println("send msg:", message.command, message.args)
 			}
 
 			timeBeforeSend := time.Now()
@@ -713,11 +714,11 @@ func (yt *YouTube) sendMessages() {
 					retries++
 					retryTimeout := time.Duration(retries*retries) * 500 * time.Millisecond
 					if retries > 4 {
-						log.Println("ERROR: could not send message, giving up:", err)
+						logger.Errln("could not send message, giving up:", err)
 						yt.Quit()
 						return
 					}
-					log.Printf("ERROR: could not send message, retrying in %s: %s", retryTimeout, err)
+					logger.Warnf("could not send message, retrying in %s: %s", retryTimeout, err)
 					time.Sleep(retryTimeout)
 					continue
 				}
@@ -728,7 +729,7 @@ func (yt *YouTube) sendMessages() {
 
 			prepareLatency := timeBeforeSend.Sub(deadline) / time.Millisecond * time.Millisecond
 			httpLatency := time.Now().Sub(timeBeforeSend) / time.Millisecond * time.Millisecond
-			log.Printf("messages sent: %d (prepare %s, http latency %s)", len(queuedMessages), prepareLatency, httpLatency)
+			logger.Printf("messages sent: %d (prepare %s, http latency %s)\n", len(queuedMessages), prepareLatency, httpLatency)
 
 			count += len(queuedMessages)
 			queuedMessages = queuedMessages[:0]
@@ -738,7 +739,7 @@ func (yt *YouTube) sendMessages() {
 		case pairingCode := <-yt.pairingCodes:
 			// Register the pairing code: that can be done after sending and
 			// receiving message channels have been set up.
-			log.Println("Registering pairing code...")
+			logger.Println("Registering pairing code...")
 			params := url.Values{
 				"access_type":  []string{"permanent"},
 				"pairing_code": []string{pairingCode},
@@ -746,7 +747,7 @@ func (yt *YouTube) sendMessages() {
 			}
 			_, err := httpPostFormBody("https://www.youtube.com/api/lounge/pairing/register_pairing_code", params)
 			if err != nil {
-				log.Println("WARNING: could not register pairing code:", err)
+				logger.Warnln("could not register pairing code:", err)
 			}
 		}
 	}

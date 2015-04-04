@@ -1,9 +1,9 @@
 package server
 
 import (
-	"log"
 	"flag"
 
+	"github.com/aykevl93/plaincast/log"
 	"github.com/nu7hatch/gouuid"
 )
 
@@ -15,22 +15,22 @@ const (
 )
 
 var deviceUUID *uuid.UUID
-
 var disableSSDP = flag.Bool("no-ssdp", false, "disable SSDP broadcast")
+var logger = log.New("server", "log HTTP and SSDP server")
 
 func Serve() {
 	var err error
 	deviceUUID, err = getUUID()
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	us := NewUPnPServer()
 	httpPort, err := us.startServing()
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
-	log.Println("serving HTTP on port", httpPort)
+	logger.Println("serving HTTP on port", httpPort)
 
 	if !*disableSSDP {
 		serveSSDP(httpPort)

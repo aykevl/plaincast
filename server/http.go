@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -133,7 +132,7 @@ func (us *UPnPServer) startServing() (int, error) {
 }
 
 func (us *UPnPServer) serveHome(w http.ResponseWriter, req *http.Request) {
-	log.Println("http", req.Method, req.URL.Path)
+	logger.Println(req.Method, req.URL.Path)
 
 	if req.URL.Path != "/" {
 		http.NotFound(w, req)
@@ -184,7 +183,7 @@ func (us *UPnPServer) getApplicationURL(req *http.Request) string {
 
 // serveDescription serves the UPnP device description
 func (us *UPnPServer) serveDescription(w http.ResponseWriter, req *http.Request) {
-	log.Println("http", req.Method, req.URL.Path)
+	logger.Println(req.Method, req.URL.Path)
 
 	w.Header().Set("Application-URL", us.getApplicationURL(req))
 
@@ -213,7 +212,7 @@ func (us *UPnPServer) serveDescription(w http.ResponseWriter, req *http.Request)
 
 // serveApp serves an app description and handles starting/stopping of apps
 func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
-	log.Println("http", req.Method, req.URL.Path)
+	logger.Println(req.Method, req.URL.Path)
 
 	matches := us.appMatchString.FindSubmatch([]byte(req.URL.Path))
 	if matches == nil || len(matches) < 3 {

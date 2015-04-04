@@ -18,13 +18,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aykevl93/plaincast/config"
+	"github.com/aykevl93/plaincast/log"
 )
 
 var MPV_PROPERTY_UNAVAILABLE = errors.New("mpv: property unavailable")
@@ -37,6 +37,7 @@ type MPV struct {
 	mainloopExit chan struct{}
 }
 
+var mpvLogger = log.New("mpv", "log MPV wrapper output")
 var logLibMPV = flag.Bool("log-libmpv", false, "log output of libmpv")
 
 // New creates a new MPV instance and initializes the libmpv player
@@ -56,7 +57,7 @@ func (mpv *MPV) initialize() (chan State, int) {
 	})
 	if err != nil {
 		// should not happen
-		log.Fatal(err)
+		panic(err)
 	}
 
 	mpv.setOptionFlag("no-resume-playback", true)
@@ -157,7 +158,7 @@ func (mpv *MPV) sendCommand(command []string) {
 	if command[0] == "loadfile" {
 		cmd[1] = "<stream>"
 	}
-	log.Println("MPV command:", cmd)
+	logger.Println("MPV command:", cmd)
 
 	cArray := C.makeCharArray(C.int(len(command) + 1))
 	if cArray == nil {
@@ -178,7 +179,7 @@ func (mpv *MPV) sendCommand(command []string) {
 // Warning: this function can take an unbounded time. Call inside a new
 // goroutine to prevent blocking / deadlocks.
 func (mpv *MPV) getProperty(name string) (float64, error) {
-	log.Printf("MPV get property: %s\n", name)
+	logger.Printf("MPV get property: %s\n", name)
 
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
@@ -196,7 +197,7 @@ func (mpv *MPV) getProperty(name string) (float64, error) {
 
 // setProperty sets the MPV player property
 func (mpv *MPV) setProperty(name, value string) {
-	log.Printf("MPV set property: %s=%s\n", name, value)
+	logger.Printf("MPV set property: %s=%s\n", name, value)
 
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
@@ -227,7 +228,7 @@ func (mpv *MPV) play(stream string, position time.Duration, volume int) {
 	// This libav/libnettle combination is in use on Debian jessie. FFmpeg
 	// doesn't have a problem with it.
 	if !strings.HasPrefix(stream, "https://") {
-		log.Panic("Stream does not start with https://...")
+		logger.Panic("Stream does not start with https://...")
 	}
 	mpv.sendCommand([]string{"loadfile", "http://localhost:8008/proxy/" + stream[len("https://"):], "replace", options})
 }
@@ -292,7 +293,7 @@ func (mpv *MPV) eventHandler(eventChan chan State) {
 		// for older MPV versions.
 		event := C.mpv_wait_event(mpv.handle, 1)
 		if event.event_id != C.MPV_EVENT_NONE {
-			log.Printf("MPV event: %s (%d)\n", C.GoString(C.mpv_event_name(event.event_id)), int(event.event_id))
+			logger.Printf("MPV event: %s (%d)\n", C.GoString(C.mpv_event_name(event.event_id)), int(event.event_id))
 		}
 
 		if event.error != 0 {

@@ -5,7 +5,11 @@ package mp
 import (
 	"errors"
 	"time"
+
+	"github.com/aykevl93/plaincast/log"
 )
+
+var logger = log.New("player", "log media player messages")
 
 // these are defined by the YouTube API
 type State int

@@ -3,7 +3,6 @@ package mp
 import (
 	"bufio"
 	"io"
-	"log"
 	"net/url"
 	"os"
 	"os/exec"
@@ -27,8 +26,6 @@ try:
         'format': sys.argv[1],
         'quiet': True,
         'simulate': True})
-
-    sys.stderr.write('YouTube-DL started.\n')
 
     while True:
         stream = ''
@@ -84,17 +81,17 @@ func NewVideoGrabber() *VideoGrabber {
 		vg.cmd = exec.Command("python", "-c", pythonGrabber, grabberFormats)
 		stdout, err := vg.cmd.StdoutPipe()
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal(err)
 		}
 		vg.cmdStdout = bufio.NewReader(stdout)
 		vg.cmdStdin, err = vg.cmd.StdinPipe()
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal(err)
 		}
 		vg.cmd.Stderr = os.Stderr
 		err = vg.cmd.Start()
 		if err != nil {
-			log.Fatal("Could not start video stream grabber:", err)
+			logger.Fatal("Could not start video stream grabber:", err)
 		}
 
 	}()
@@ -108,14 +105,14 @@ func (vg *VideoGrabber) Quit() {
 
 	err := vg.cmd.Process.Signal(os.Interrupt)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal("could not send SIGINT:", err)
 	}
 
 	// Wait until exit, and free resources
 	err = vg.cmd.Wait()
 	if err != nil {
 		if _, ok := err.(*exec.ExitError); !ok {
-			log.Fatal(err)
+			logger.Fatal("process could not be stopped:", err)
 		}
 	}
 }
@@ -139,12 +136,12 @@ func (vg *VideoGrabber) getStream(videoId string) *VideoURL {
 		if !stream.WillExpire() {
 			return stream
 		} else {
-			log.Println("Stream has expired for ID:", videoId)
+			logger.Println("Stream has expired for ID:", videoId)
 		}
 	}
 
 	videoURL := "https://www.youtube.com/watch?v=" + videoId
-	log.Println("Fetching video stream for URL", videoURL)
+	logger.Println("Fetching video stream for URL", videoURL)
 
 	// Streams normally expire in 6 hour, give it a margin of one hour.
 	stream = &VideoURL{videoId: videoId, expires: time.Now().Add(5 * time.Hour)}
@@ -159,19 +156,19 @@ func (vg *VideoGrabber) getStream(videoId string) *VideoURL {
 		io.WriteString(vg.cmdStdin, videoURL+"\n")
 		line, err := vg.cmdStdout.ReadString('\n')
 		if err != nil {
-			log.Fatal("could not grab video:", err)
+			logger.Fatal("could not grab video:", err)
 		}
 
 		stream.url = line[:len(line)-1]
 		stream.fetchMutex.Unlock()
 
-		log.Println("Got stream for", videoURL)
+		logger.Println("Got stream for", videoURL)
 
 		expires, err := getExpiresFromURL(stream.url)
 		if err != nil {
-			log.Println("WARNING: failed to extract expires from video URL:", err)
+			logger.Warnln("failed to extract expires from video URL:", err)
 		} else if expires.Before(stream.expires) {
-			log.Println("WARNING: URL expires before the estimated expires!")
+			logger.Warnln("URL expires before the estimated expires!")
 		}
 	}()
 

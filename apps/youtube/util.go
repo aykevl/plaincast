@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -70,6 +69,6 @@ func processRequest(resp *http.Response) ([]byte, error) {
 // handle is a helper function for easier handling of fatal errors.
 func handle(err error, message string) {
 	if err != nil {
-		log.Fatalf("%s: %s\n", message, err)
+		logger.Fatalf("%s: %s\n", message, err)
 	}
 }
