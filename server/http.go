@@ -21,6 +21,7 @@ import (
 // DIAL is deprecated, but it's still being used by the YouTube app on Android.
 
 var flagHTTPPort = flag.Int("http-port", 8008, "default http port (0=available)")
+var flagInitialApp = flag.String("app", "", "App to run on startup")
 
 // UPnP device description template
 const DEVICE_DESCRIPTION = `<?xml version="1.0"?>
@@ -104,6 +105,13 @@ func NewUPnPServer() *UPnPServer {
 	// initialize all known apps
 	us.apps = make(map[string]apps.App)
 	us.apps["YouTube"] = youtube.New(FRIENDLY_NAME)
+	if *flagInitialApp != "" {
+		if app, ok := us.apps[*flagInitialApp]; ok {
+			app.Start("")
+		} else {
+			logger.Fatalln("Unknown app:", *flagInitialApp)
+		}
+	}
 
 	// http Client as used by the proxy
 	us.proxyClient = &http.Client{}
