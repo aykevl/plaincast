@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -450,10 +449,7 @@ func (yt *YouTube) initialBind() bool {
 	if resp.StatusCode != 200 {
 		logger.Errln("HTTP error while connecting to message channel:", resp.Status)
 
-		// most likely the YouTube server gives back an error in HTML form
-		buf, err := ioutil.ReadAll(resp.Body)
-		handle(err, "error while reading error message")
-		logger.Errf("Response body:\n%s\n\n", string(buf))
+		printHTTPError(resp)
 
 		yt.Quit()
 		return true
@@ -513,9 +509,7 @@ func (yt *YouTube) bind() {
 			logger.Errln("HTTP error while connecting to message channel:", resp.Status)
 
 			// most likely the YouTube server gives back an error in HTML form
-			buf, err := ioutil.ReadAll(resp.Body)
-			handle(err, "error while reading error message")
-			logger.Errf("Response body:\n%s\n\n", string(buf))
+			printHTTPError(resp)
 
 			yt.Quit()
 			break
@@ -586,7 +580,7 @@ func (yt *YouTube) handleRawReceivedMessage(rawMessage incomingMessageJson) bool
 			logger.Warnln("old command:", message.index, message.command, message.args)
 			return false
 		} else {
-			logger.Errf("missing some messages, message number=%d, expected number=%d", message.index, yt.aid)
+			logger.Errf("missing some messages, message number=%d, expected number=%d\n", message.index, yt.aid)
 		}
 	}
 	yt.aid = int32(message.index)

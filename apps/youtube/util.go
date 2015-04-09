@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"strconv"
+	"os"
 )
 
 // zx generates a random string of bytes that is 12 characters long.
@@ -51,7 +51,7 @@ func httpPostFormBody(url string, values url.Values) ([]byte, error) {
 func processRequest(resp *http.Response) ([]byte, error) {
 
 	if resp.StatusCode != 200 {
-		return nil, errors.New("unexpected HTTP status code: " + strconv.Itoa(resp.StatusCode))
+		return nil, errors.New("unexpected HTTP status code: " + resp.Status)
 	}
 
 	if resp.ContentLength < 0 {
@@ -66,9 +66,13 @@ func processRequest(resp *http.Response) ([]byte, error) {
 	}
 }
 
-// handle is a helper function for easier handling of fatal errors.
-func handle(err error, message string) {
+func printHTTPError(resp *http.Response) {
+	buf, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		logger.Fatalf("%s: %s\n", message, err)
+		logger.Errln("could not read error message:", err)
+	} else {
+		logger.Errln("response body:")
+		os.Stdout.Write(buf)
+		os.Stdout.Sync()
 	}
 }
