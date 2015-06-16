@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"net"
 
 	"github.com/aykevl93/plaincast/apps/youtube/mp"
 	"github.com/aykevl93/plaincast/config"
@@ -19,6 +20,14 @@ import (
 )
 
 var logger = log.New("youtube", "log YouTube app")
+
+// How often a new connection attempt should be done.
+// With a starting delay of 500ms that exponentially increases, this is about 5
+// minutes.
+const RETRIES = 25
+
+// Initial retry timeout in milliseconds. This timeout increases exponentially.
+const RETRY_TIMEOUT = 500
 
 // # Preventing race conditions & leaks
 //
@@ -387,6 +396,14 @@ func (yt *YouTube) Running() bool {
 }
 
 func (yt *YouTube) connect() {
+	yt.loadLoungeToken()
+
+	// Start sending/receiving channel.
+	// There should now be enough information.
+	yt.bind()
+}
+
+func (yt *YouTube) loadLoungeToken() {
 	params := url.Values{
 		"screen_ids": []string{yt.getScreenId()},
 	}
@@ -399,10 +416,6 @@ func (yt *YouTube) connect() {
 	loungeTokenBatch := loungeTokenBatchJson{}
 	json.Unmarshal(response, &loungeTokenBatch)
 	yt.loungeToken = loungeTokenBatch.Screens[0].LoungeToken
-
-	// Start sending/receiving channel.
-	// There should now be enough information.
-	yt.bind()
 }
 
 func (yt *YouTube) getScreenId() string {
@@ -419,74 +432,66 @@ func (yt *YouTube) getScreenId() string {
 	return screenId
 }
 
-func (yt *YouTube) initialBind() bool {
-	yt.rid.Restart()
+func (yt *YouTube) openChannel(initial bool) *http.Response {
+	if initial {
+		yt.rid.Restart()
 
-	logger.Println("Getting first batch of messages")
-	params := url.Values{
-		"count": []string{"0"},
+		logger.Println("Getting first batch of messages")
 	}
 
-	var bindUrl string
-	// TODO more fields should be query-escaped
-	if yt.sid == "" {
-		// first connection
-		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=%d&zx=%s",
-			yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.rid.Next(), zx())
-	} else {
-		// connection after a 400 Unknown SID error
-		bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&OSID=%s&OAID=%d&VER=8&RID=%d&zx=%s",
-			yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, yt.aid, yt.rid.Next(), zx())
-	}
+	doInitial := initial
 
-	resp, err := http.PostForm(bindUrl, params)
-	if err != nil {
-		logger.Errln("could not connect to message channel:", err)
-		yt.Quit()
-		return true
-	}
-
-	if resp.StatusCode != 200 {
-		logger.Errln("HTTP error while connecting to message channel:", resp.Status)
-
-		printHTTPError(resp)
-
-		yt.Quit()
-		return true
-	}
-
-	yt.aid = -1
-
-	if yt.handleMessageStream(resp, true) {
-		// YouTube closed while connecting
-		return true
-	}
-
-	return false
-}
-
-func (yt *YouTube) bind() {
-
-	if yt.initialBind() {
-		return
-	}
-
-	// now yt.sid and yt.gsessionid should be defined, so sendMessages has
-	// enough information to start
-
-	go yt.sendMessages()
+	// How often the connection was retried. Zero on normal operation.
+	// The retry timeout increases exponentially with the number of failures.
+	retries := 0
 
 	for {
 		yt.sendMutex.Lock()
 		aid := yt.aid
 		yt.sendMutex.Unlock()
 
-		bindUrl := fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=rpc&SID=%s&CI=0&AID=%d&gsessionid=%s&TYPE=xmlhttp&zx=%s", yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, aid, yt.gsessionid, zx())
+		var bindUrl string
+		// TODO more fields should be query-escaped
+		if !doInitial {
+			// normal reconnect
+			bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=rpc&SID=%s&CI=0&AID=%d&gsessionid=%s&TYPE=xmlhttp&zx=%s",
+				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, aid, yt.gsessionid, zx())
+		} else if yt.sid == "" {
+			// first connection
+			bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&VER=8&RID=%d&zx=%s",
+				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.rid.Next(), zx())
+		} else {
+			// connection after a 400 Unknown SID error
+			bindUrl = fmt.Sprintf("https://www.youtube.com/api/lounge/bc/bind?device=LOUNGE_SCREEN&id=%s&name=%s&loungeIdToken=%s&OSID=%s&OAID=%d&VER=8&RID=%d&zx=%s",
+				yt.uuid, url.QueryEscape(yt.systemName), yt.loungeToken, yt.sid, aid, yt.rid.Next(), zx())
+		}
 
 		timeBeforeGet := time.Now()
 
-		resp, err := http.Get(bindUrl)
+		var resp *http.Response
+		var err error
+		if doInitial {
+			params := url.Values{
+				"count": []string{"0"},
+			}
+			resp, err = http.PostForm(bindUrl, params)
+		} else {
+			resp, err = http.Get(bindUrl)
+		}
+
 		if err != nil {
+			if err == io.EOF {
+				if !yt.errorRetryTimeout(&retries, "EOF on bind", err) {
+					yt.Quit()
+					break
+				}
+				// reconnect
+				continue
+			} else if _, ok := err.(net.Error); ok && err.(net.Error).Timeout() {
+				logger.Warnln("timeout while connecting to message channel, retrying in 30s...")
+				time.Sleep(30*time.Second)
+				continue
+			}
 			logger.Errln(err)
 			yt.Quit()
 			break
@@ -495,14 +500,28 @@ func (yt *YouTube) bind() {
 		if resp.Status == "400 Unknown SID" {
 			logger.Println("error:", resp.Status, ". Reconnecting the message channel...")
 			// Restart the Channel API connection
+			doInitial = true
+			continue
 
-			yt.sendMutex.Lock()
-			if yt.initialBind() {
-				yt.sendMutex.Unlock()
-				return
+		} else if resp.Status == "410 Gone" {
+			if !yt.errorRetryTimeout(&retries, "got 410 Gone on reconnect", nil) {
+				yt.Quit()
+				break
 			}
-			yt.sendMutex.Unlock()
 
+			// Restart Channel API connection from the beginning
+			yt.sendMutex.Lock()
+			yt.sid = ""
+			yt.loadLoungeToken()
+			yt.sendMutex.Unlock()
+			doInitial = true
+			continue
+
+		} else if resp.StatusCode == 502 {
+			if !yt.errorRetryTimeout(&retries, "got HTTP error 502 on reconnect", nil) {
+				yt.Quit()
+				break
+			}
 			continue
 
 		} else if resp.StatusCode != 200 {
@@ -515,13 +534,64 @@ func (yt *YouTube) bind() {
 			break
 		}
 
-		latency := time.Now().Sub(timeBeforeGet) / time.Millisecond * time.Millisecond
-		logger.Println("Connected to message channel in", latency)
+		if !initial {
+			latency := time.Now().Sub(timeBeforeGet) / time.Millisecond * time.Millisecond
+			logger.Println("Connected to message channel in", latency)
+		}
 
+		if doInitial {
+			yt.sendMutex.Lock()
+			yt.aid = -1
+			yt.sendMutex.Unlock()
+		}
+
+		return resp
+	}
+
+	return nil
+}
+
+func (yt *YouTube) bind() {
+
+	resp := yt.openChannel(true)
+	if resp == nil || yt.handleMessageStream(resp, true) {
+		return
+	}
+
+	// now yt.sid and yt.gsessionid should be defined, so sendMessages has
+	// enough information to start
+
+	go yt.sendMessages()
+
+	// Loop to keep the connection open
+	for {
+		resp := yt.openChannel(false)
+		if resp == nil {
+			break
+		}
 		if yt.handleMessageStream(resp, false) {
 			break
 		}
 	}
+}
+
+// errorRetryTimeout waits an exponential amount of time to retry something, or
+// gives up after a number of retries. It returns true when it should retry, or
+// false otherwise.
+func (yt *YouTube) errorRetryTimeout(retries *int, message string, err error) bool {
+	*retries++
+	retryTimeout := time.Duration((*retries)*(*retries)) * RETRY_TIMEOUT * time.Millisecond
+	ending := ""
+	if err != nil {
+		ending = ": " + err.Error()
+	}
+	if *retries > RETRIES {
+		logger.Errf("%s, giving up%s\n", message, ending)
+		return false
+	}
+	logger.Warnf("%s, retrying in %s%s\n", message, retryTimeout, ending)
+	time.Sleep(retryTimeout)
+	return true
 }
 
 func (yt *YouTube) handleMessageStream(resp *http.Response, singleBatch bool) bool {
@@ -705,15 +775,10 @@ func (yt *YouTube) sendMessages() {
 				yt.sendMutex.Unlock()
 
 				if err != nil {
-					retries++
-					retryTimeout := time.Duration(retries*retries) * 500 * time.Millisecond
-					if retries > 4 {
-						logger.Errln("could not send message, giving up:", err)
+					if !yt.errorRetryTimeout(&retries, "could not send message", err) {
 						yt.Quit()
 						return
 					}
-					logger.Warnf("could not send message, retrying in %s: %s", retryTimeout, err)
-					time.Sleep(retryTimeout)
 					continue
 				}
 
