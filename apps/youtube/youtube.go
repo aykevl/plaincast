@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"net"
 
 	"github.com/aykevl/plaincast/apps/youtube/mp"
 	"github.com/aykevl/plaincast/config"
@@ -489,7 +489,7 @@ func (yt *YouTube) openChannel(initial bool) *http.Response {
 				continue
 			} else if _, ok := err.(net.Error); ok && err.(net.Error).Timeout() {
 				logger.Warnln("timeout while connecting to message channel, retrying in 30s...")
-				time.Sleep(30*time.Second)
+				time.Sleep(30 * time.Second)
 				continue
 			}
 			logger.Errln(err)
