@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 
-	"github.com/aykevl93/plaincast/server"
+	"github.com/aykevl/plaincast/server"
 )
 
 func main() {

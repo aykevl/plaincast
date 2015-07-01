@@ -3,7 +3,7 @@ package server
 import (
 	"flag"
 
-	"github.com/aykevl93/plaincast/log"
+	"github.com/aykevl/plaincast/log"
 	"github.com/nu7hatch/gouuid"
 )
 

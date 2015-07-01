@@ -13,8 +13,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aykevl93/plaincast/apps"
-	"github.com/aykevl93/plaincast/apps/youtube"
+	"github.com/aykevl/plaincast/apps"
+	"github.com/aykevl/plaincast/apps/youtube"
 )
 
 // This implements a UPnP/DIAL server.

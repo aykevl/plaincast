@@ -13,9 +13,9 @@ import (
 	"time"
 	"net"
 
-	"github.com/aykevl93/plaincast/apps/youtube/mp"
-	"github.com/aykevl93/plaincast/config"
-	"github.com/aykevl93/plaincast/log"
+	"github.com/aykevl/plaincast/apps/youtube/mp"
+	"github.com/aykevl/plaincast/config"
+	"github.com/aykevl/plaincast/log"
 	"github.com/nu7hatch/gouuid"
 )
 

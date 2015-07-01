@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aykevl93/plaincast/config"
-	"github.com/aykevl93/plaincast/log"
+	"github.com/aykevl/plaincast/config"
+	"github.com/aykevl/plaincast/log"
 )
 
 var MPV_PROPERTY_UNAVAILABLE = errors.New("mpv: property unavailable")

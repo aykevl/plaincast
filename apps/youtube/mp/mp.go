@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/aykevl93/plaincast/log"
+	"github.com/aykevl/plaincast/log"
 )
 
 var logger = log.New("player", "log media player messages")
