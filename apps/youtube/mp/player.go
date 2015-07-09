@@ -244,9 +244,12 @@ func (p *MediaPlayer) updatePlaylist(ps *PlayState, playlist []string) {
 		}
 
 	} else {
-		videoId := ps.Playlist[ps.Index]
+		videoId := ps.Video()
 		ps.Playlist = playlist
-		p.setPlaylistIndex(ps, videoId)
+		p.setPlaylistIndex(ps, videoId, ps.Index)
+		if ps.Video() != videoId && ps.State != STATE_STOPPED {
+			p.player.stop()
+		}
 	}
 
 	if ps.NextVideo() != nextVideo {
@@ -256,12 +259,12 @@ func (p *MediaPlayer) updatePlaylist(ps *PlayState, playlist []string) {
 
 func (p *MediaPlayer) SetVideo(videoId string, position time.Duration) {
 	p.getPlayState(func(ps *PlayState) {
-		p.setPlaylistIndex(ps, videoId)
+		p.setPlaylistIndex(ps, videoId, ps.Index)
 		p.startPlaying(ps, position)
 	})
 }
 
-func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string) {
+func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string, backupIndex int) {
 	newIndex := -1
 	for i, v := range ps.Playlist {
 		if v == videoId {
@@ -275,10 +278,12 @@ func (p *MediaPlayer) setPlaylistIndex(ps *PlayState, videoId string) {
 	}
 
 	if newIndex == -1 {
-		// don't know how to proceed
-		// TODO: it is currently possible an invalid message could cause this
-		// error (via updatePlaylist or setVideo).
-		panic("current video does not exist in new playlist")
+		// This may happen when the current and last video is removed from the
+		// playlist.
+		newIndex = backupIndex
+		if newIndex >= len(ps.Playlist) {
+			newIndex = len(ps.Playlist) - 1
+		}
 	}
 
 	ps.Index = newIndex
