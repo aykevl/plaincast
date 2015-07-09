@@ -31,6 +31,7 @@ type PlayState struct {
 	Playlist          []string
 	Index             int
 	State             State
+	ListId            string
 	Volume            int
 	bufferingPosition time.Duration
 	newVolume         bool  // true if the Volume property must be reapplied to the player
@@ -63,6 +64,7 @@ type PlaylistState struct {
 	Index    int
 	Position time.Duration
 	State    State
+	ListId   string
 }
 
 type StateChange struct {

@@ -182,7 +182,7 @@ func (yt *YouTube) init(arguments url.Values, stateChange chan mp.StateChange) {
 			panic(err)
 		}
 
-		yt.mp.SetPlaystate([]string{videoId}, 0, position)
+		yt.mp.SetPlaystate([]string{videoId}, 0, position, "")
 	}
 }
 
@@ -270,10 +270,10 @@ func (yt *YouTube) run(arguments url.Values) {
 					break
 				}
 
-				yt.mp.SetPlaystate(playlist, index, position)
+				yt.mp.SetPlaystate(playlist, index, position, message.args["listId"])
 			case "updatePlaylist":
 				playlist := strings.Split(message.args["videoIds"], ",")
-				yt.mp.UpdatePlaylist(playlist)
+				yt.mp.UpdatePlaylist(playlist, message.args["listId"])
 				yt.outgoingMessages <- outgoingMessage{"confirmPlaylistUpdate", map[string]string{"updated": "true"}}
 			case "setVideo":
 				videoId := message.args["videoId"]
@@ -382,7 +382,7 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 				message.args["currentTime"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
 				message.args["state"] = strconv.Itoa(int(ps.State))
 				message.args["currentIndex"] = strconv.Itoa(ps.Index)
-				//message.args["listId"] = ""
+				message.args["listId"] = ps.ListId
 			}
 			yt.outgoingMessages <- message
 		}

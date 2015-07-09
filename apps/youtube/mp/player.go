@@ -82,7 +82,7 @@ func (p *MediaPlayer) getPlayState(callback func(*PlayState)) {
 
 // SetPlaystate changes the play state to the specified arguments
 // This function doesn't block, but changes may not be immediately applied.
-func (p *MediaPlayer) SetPlaystate(playlist []string, index int, position time.Duration) {
+func (p *MediaPlayer) SetPlaystate(playlist []string, index int, position time.Duration, listId string) {
 	p.getPlayState(func(ps *PlayState) {
 		if ps.State == STATE_BUFFERING && ps.bufferingPosition == position && ps.Index < len(ps.Playlist) && playlist[index] == ps.Playlist[ps.Index] {
 			// just in case something else has changed, update the playlist
@@ -91,6 +91,7 @@ func (p *MediaPlayer) SetPlaystate(playlist []string, index int, position time.D
 		}
 		ps.Playlist = playlist
 		ps.Index = index
+		ps.ListId = listId
 
 		if len(ps.Playlist) > 0 {
 			p.startPlaying(ps, position)
@@ -219,8 +220,9 @@ func (p *MediaPlayer) setPlayState(ps *PlayState, state State, position time.Dur
 	p.stateChange <- StateChange{state, position}
 }
 
-func (p *MediaPlayer) UpdatePlaylist(playlist []string) {
+func (p *MediaPlayer) UpdatePlaylist(playlist []string, listId string) {
 	p.getPlayState(func(ps *PlayState) {
+		ps.ListId = listId
 		p.updatePlaylist(ps, playlist)
 	})
 }
@@ -302,7 +304,7 @@ func (p *MediaPlayer) RequestPlaylist(playlistChan chan PlaylistState) {
 		case <-playlistChan:
 		default:
 		}
-		playlistChan <- PlaylistState{playlist, ps.Index, p.getPosition(ps), ps.State}
+		playlistChan <- PlaylistState{playlist, ps.Index, p.getPosition(ps), ps.State, ps.ListId}
 	})
 }
 
