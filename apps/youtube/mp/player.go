@@ -53,7 +53,13 @@ func (p *MediaPlayer) getPosition(ps *PlayState) time.Duration {
 		var err error
 		position, err = p.player.getPosition()
 		if err != nil {
-			// TODO: the position might be unavailable just after a seek
+			// TODO: there are still race conditions left.
+			// It is possible that getPosition is requested right before the end
+			// of a stream, for example via 'getPlaylist'. The property may then
+			// be returned after the end of the stream, resulting in a 'property
+			// unavailable' error. getPosition should be rewritten to request
+			// the property asynchronously so we can take care of the actual
+			// playstate.
 			panic(err)
 		}
 	default:
@@ -170,6 +176,7 @@ func (p *MediaPlayer) nextVideo(ps *PlayState) {
 	} else {
 		// signal that the video has stopped playing
 		// this resets the position but keeps the playlist
+		// TODO keep the position at the end, not the beginning
 		p.setPlayState(ps, STATE_STOPPED, 0)
 	}
 }
@@ -200,7 +207,7 @@ func (p *MediaPlayer) prefetchVideoStream(videoId string) {
 // setPlayState updates the PlayState and sends events.
 // position may be -1: in that case it will be updated.
 func (p *MediaPlayer) setPlayState(ps *PlayState, state State, position time.Duration) {
-	if ps.State == STATE_SEEKING {
+	if ps.State == STATE_BUFFERING || ps.State == STATE_SEEKING {
 		position = ps.bufferingPosition
 	}
 
@@ -418,6 +425,8 @@ func (p *MediaPlayer) stop(ps *PlayState) {
 	// Do not set ps.Index to 0, it may be needed for UpdatePlaylist:
 	// Stop is called before UpdatePlaylist when removing the currently
 	// playing video from the playlist.
+	// TODO this is a race condition: it looks like the player is playing with
+	// an empty playlist now.
 	p.player.stop()
 }
 
