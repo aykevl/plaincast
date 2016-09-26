@@ -1,0 +1,11 @@
+[Unit]
+Description=Plaincast service
+After=network.target sound.target
+
+[Service]
+ExecStart=/usr/local/bin/plaincast -log-mpv -log-youtube -config /var/local/plaincast/plaincast.conf
+User=plaincast
+Group=audio
+
+[Install]
+WantedBy=multi-user.target

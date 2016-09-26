@@ -26,18 +26,31 @@ var config *Config
 const CONFIG_FILENAME = ".config/plaincast.json"
 
 var disableConfig = flag.Bool("no-config", false, "disable reading from and writing to config file")
+var configPath = flag.String("config", "", "config file location (default " + CONFIG_FILENAME + ")")
 
 // Get returns a global Config instance.
 // It may be called multiple times: the same object will be returned each time.
 func Get() *Config {
 	if config == nil {
-		u, err := user.Current()
-		handle(err, "could not get current user")
+		var path = ""
 
-		path := filepath.Join(u.HomeDir, CONFIG_FILENAME)
+		if *disableConfig {
+			// don't set config path
 
-		err = os.MkdirAll(filepath.Dir(path), 0777)
-		handle(err, "could not create parent directories of config file")
+		} else if *configPath != "" {
+			// set custom config path
+			path = *configPath
+
+		} else {
+			// use default config path
+			u, err := user.Current()
+			handle(err, "could not get current user")
+
+			path := filepath.Join(u.HomeDir, CONFIG_FILENAME)
+
+			err = os.MkdirAll(filepath.Dir(path), 0777)
+			handle(err, "could not create parent directories of config file")
+		}
 
 		config = newConfig(path)
 	}
@@ -49,7 +62,7 @@ func newConfig(path string) *Config {
 	c := &Config{}
 	c.data = make(map[string]interface{})
 
-	if *disableConfig {
+	if path == "" {
 		return c
 	}
 
@@ -162,7 +175,7 @@ func (c *Config) saveTask() {
 		data, err := json.MarshalIndent(&c.data, "", "\t")
 		handle(err, "could not serialize config data")
 
-		f, err := os.Create(c.path + ".tmp")
+		f, err := os.OpenFile(c.path + ".tmp", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 		handle(err, "could not open config file")
 		_, err = f.Write(data)
 		handle(err, "could not write config file")
