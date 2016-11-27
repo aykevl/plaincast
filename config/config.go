@@ -22,6 +22,7 @@ type Config struct {
 }
 
 var config *Config
+var configLock sync.Mutex
 
 const CONFIG_FILENAME = ".config/plaincast.json"
 
@@ -31,6 +32,9 @@ var configPath = flag.String("config", "", "config file location (default " + CO
 // Get returns a global Config instance.
 // It may be called multiple times: the same object will be returned each time.
 func Get() *Config {
+	configLock.Lock()
+	defer configLock.Unlock()
+
 	if config == nil {
 		var path = ""
 
@@ -61,13 +65,13 @@ func Get() *Config {
 func newConfig(path string) *Config {
 	c := &Config{}
 	c.data = make(map[string]interface{})
+	c.saveChan = make(chan struct{}, 1)
 
 	if path == "" {
 		return c
 	}
 
 	c.path = path
-	c.saveChan = make(chan struct{}, 1)
 
 	if _, err := os.Stat(c.path); !os.IsNotExist(err) {
 		f, err := os.Open(c.path)
