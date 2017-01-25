@@ -34,7 +34,7 @@ To run the server, run the executable `bin/plaincast` relative to your Go worksp
 
 ## Notes on youtube-dl
 
-youtube-dl is often too old to be used for downloading YouTube streams. You can try to run `youtube-dl -U`, but it may say that it won't update because it has been installed via a package manager. To fix this, uninstall youtube-dl, and install it via pip. On Debian, this is as easy as running:
+1) youtube-dl is often too old to be used for downloading YouTube streams. You can try to run `youtube-dl -U`, but it may say that it won't update because it has been installed via a package manager. To fix this, uninstall youtube-dl, and install it via pip. On Debian, this is as easy as running:
 
     $ sudo apt-get remove youtube-dl
     $ sudo apt-get install python-pip
@@ -45,6 +45,8 @@ Afterwards, you can update youtube-dl using:
     $ sudo pip install --upgrade youtube-dl
 
 It is advisable to run this regularly as it has to keep up with YouTube updates. Certainly first try updating youtube-dl when plaincast stops working.
+
+2) Your installation of youtube-dl must be configured to use or include the modules for the same python version as the one from the `python` binary available in your `PATH` environment variable.
 
 ## Known issues
 

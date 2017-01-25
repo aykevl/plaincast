@@ -30,11 +30,12 @@ try:
     while True:
         stream = ''
         try:
-            url = raw_input()
+            # python2/3 compatibility shenanigans
+            url = vars(__builtins__).get('raw_input',input)()
             stream = yt.extract_info(url, ie_key='Youtube')['url']
         except (KeyboardInterrupt, EOFError, IOError):
             break
-        except DownloadError, why:
+        except DownloadError as why:
             # error message has already been printed
             sys.stderr.write('Could not extract video, try updating youtube-dl.\n')
         finally:
