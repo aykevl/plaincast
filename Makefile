@@ -10,7 +10,8 @@ run: build
 	../../bin/plaincast
 
 install:
-	cp ../../bin/plaincast /usr/local/bin/plaincast
+	cp ../../bin/plaincast /usr/local/bin/plaincast.new
+	mv /usr/local/bin/plaincast.new /usr/local/bin/plaincast
 	if ! egrep -q "^plaincast:" /etc/passwd; then useradd -s /bin/false -r -M plaincast -g audio; fi
 	mkdir -p /var/local/plaincast
 	chown plaincast:audio /var/local/plaincast
