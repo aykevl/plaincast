@@ -3,7 +3,7 @@ Description=Plaincast service
 After=network.target sound.target
 
 [Service]
-ExecStart=/usr/local/bin/plaincast -log-mpv -log-youtube -config /var/local/plaincast/plaincast.conf
+ExecStart=/usr/local/bin/plaincast -log-mpv -log-youtube -config /var/local/plaincast/plaincast.conf -cachedir /var/local/plaincast/cache
 User=plaincast
 Group=audio
 

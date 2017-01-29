@@ -4,12 +4,15 @@ package mp
 
 import (
 	"errors"
+	"flag"
 	"time"
 
 	"github.com/aykevl/plaincast/log"
 )
 
 var logger = log.New("player", "log media player messages")
+
+var cacheDir = flag.String("cachedir", "", "Cache directory")
 
 // these are defined by the YouTube API
 type State int

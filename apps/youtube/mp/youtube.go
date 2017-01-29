@@ -17,13 +17,14 @@ try:
     from youtube_dl import YoutubeDL
     from youtube_dl.utils import DownloadError
 
-    if len(sys.argv) != 2:
-        sys.stderr.write('provide one argument with the format string')
+    if len(sys.argv) != 3:
+        sys.stderr.write('arguments: <format string> <cache dir>')
         os.exit(1)
 
     yt = YoutubeDL({
         'geturl': True,
         'format': sys.argv[1],
+        'cachedir': sys.argv[2] or None,
         'quiet': True,
         'simulate': True})
 
@@ -73,12 +74,17 @@ func NewVideoGrabber() *VideoGrabber {
 	vg := VideoGrabber{}
 	vg.streams = make(map[string]*VideoURL)
 
+	cacheDir := *cacheDir
+	if cacheDir != "" {
+		cacheDir = cacheDir + "/" + "youtube-dl"
+	}
+
 	// Start the process in a separate goroutine.
 	vg.cmdMutex.Lock()
 	go func() {
 		defer vg.cmdMutex.Unlock()
 
-		vg.cmd = exec.Command("python", "-c", pythonGrabber, grabberFormats)
+		vg.cmd = exec.Command("python", "-c", pythonGrabber, grabberFormats, cacheDir)
 		stdout, err := vg.cmd.StdoutPipe()
 		if err != nil {
 			logger.Fatal(err)
