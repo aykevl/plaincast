@@ -30,8 +30,7 @@ try:
     while True:
         stream = ''
         try:
-            # python2/3 compatibility shenanigans
-            url = vars(__builtins__).get('raw_input',input)()
+            url = sys.stdin.readline().strip()
             stream = yt.extract_info(url, ie_key='Youtube')['url']
         except (KeyboardInterrupt, EOFError, IOError):
             break
