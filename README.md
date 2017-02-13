@@ -34,19 +34,40 @@ To run the server, run the executable `bin/plaincast` relative to your Go worksp
 
 ## Notes on youtube-dl
 
-1) youtube-dl is often too old to be used for downloading YouTube streams. You can try to run `youtube-dl -U`, but it may say that it won't update because it has been installed via a package manager. To fix this, uninstall youtube-dl, and install it via pip. On Debian, this is as easy as running:
+`youtube-dl` is often too old to be used for downloading YouTube streams. You
+can try to run `youtube-dl -U`, but it may say that it won't update because it
+has been installed via a package manager. To fix this, uninstall youtube-dl, and
+install it via pip. The steps required depend on the version of Python in your
+`$PATH` variable. Check it with:
+
+    $ python --version
+
+Install using pip for **Python 2** (usually version 2.7.x), on Debian stretch
+and below:
 
     $ sudo apt-get remove youtube-dl
     $ sudo apt-get install python-pip
-    $ sudo pip install youtube-dl
+    $ sudo pip2 install youtube-dl
+
+Install using pip3 for **Python 3** (version 3.x). Only required when you have
+configured the `python` binary to point to Python 3, or maybe on newer versions
+of Debian.
+
+    $ sudo apt-get remove youtube-dl
+    $ sudo apt-get install python3-pip
+    $ sudo pip3 install youtube-dl
 
 Afterwards, you can update youtube-dl using:
 
     $ sudo pip install --upgrade youtube-dl
 
-It is advisable to run this regularly as it has to keep up with YouTube updates. Certainly first try updating youtube-dl when plaincast stops working.
+Or for Python 3:
 
-2) Your installation of youtube-dl must be configured to use or include the modules for the same python version as the one from the `python` binary available in your `PATH` environment variable.
+    $ sudo pip3 install --upgrade youtube-dl
+
+It is advisable to run this regularly as it has to keep up with YouTube updates.
+Certainly first try updating youtube-dl when plaincast stops working.
+
 
 ## Known issues
 
