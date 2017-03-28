@@ -50,7 +50,7 @@ func Get() *Config {
 			u, err := user.Current()
 			handle(err, "could not get current user")
 
-			path := filepath.Join(u.HomeDir, CONFIG_FILENAME)
+			path = filepath.Join(u.HomeDir, CONFIG_FILENAME)
 
 			err = os.MkdirAll(filepath.Dir(path), 0777)
 			handle(err, "could not create parent directories of config file")
