@@ -61,7 +61,8 @@ func (mpv *MPV) initialize() (chan State, int) {
 	}
 
 	mpv.setOptionFlag("no-resume-playback", true)
-	mpv.setOptionString("softvol", "yes")
+	//mpv.setOptionString("softvol", "yes")
+	//mpv.setOptionString("ao", "pulse")
 	mpv.setOptionInt("volume", initialVolume)
 
 	// Disable video in three ways.
@@ -239,6 +240,18 @@ func (mpv *MPV) pause() {
 
 func (mpv *MPV) resume() {
 	mpv.setProperty("pause", "no")
+}
+
+func (mpv *MPV) getDuration() (time.Duration, error) {
+	duration, err := mpv.getProperty("duration")
+	if err == MPV_PROPERTY_UNAVAILABLE {
+		return 0, PROPERTY_UNAVAILABLE
+	} else if err != nil {
+		// should not happen
+		panic(err)
+	}
+
+	return time.Duration(duration * float64(time.Second)), nil
 }
 
 func (mpv *MPV) getPosition() (time.Duration, error) {

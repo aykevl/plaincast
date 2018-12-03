@@ -93,6 +93,25 @@ func newConfig(path string) *Config {
 	return c
 }
 
+func (c *Config) Get(key string, valueCall func() (interface{}, error)) (interface{}, error) {
+	c.dataMutex.Lock()
+	defer c.dataMutex.Unlock()
+
+	if value, ok := c.data[key]; ok {
+		return value, nil
+	}
+
+	value, err := valueCall()
+	if err != nil {
+		return nil, err
+	}
+
+	c.data[key] = value
+	c.save()
+
+	return value, nil
+}
+
 func (c *Config) GetString(key string, valueCall func() (string, error)) (string, error) {
 	c.dataMutex.Lock()
 	defer c.dataMutex.Unlock()
@@ -137,6 +156,14 @@ func (c *Config) GetInt(key string, valueCall func() (int, error)) (int, error) 
 	c.save()
 
 	return value, err
+}
+
+func (c *Config) Set(key string, value interface{}) {
+	c.dataMutex.Lock()
+	defer c.dataMutex.Unlock()
+
+	c.data[key] = value
+	c.save()
 }
 
 func (c *Config) SetInt(key string, value int) {

@@ -66,13 +66,15 @@ type PlaylistState struct {
 	Playlist []string
 	Index    int
 	Position time.Duration
+	Duration time.Duration
 	State    State
 	ListId   string
 }
 
 type StateChange struct {
 	State    State
-	Position time.Duration
+	Position time.Duration // current position in file
+	Duration time.Duration // total duration of file
 }
 
 const INITIAL_VOLUME = 80

@@ -73,6 +73,15 @@ func (p *MediaPlayer) getPosition(ps *PlayState) time.Duration {
 	return position
 }
 
+
+func (p *MediaPlayer) getDuration() time.Duration {
+	duration, err := p.player.getDuration()
+	if err != nil {
+		logger.Errln("cannot get duration:", err)
+	}
+	return duration // 0 if error
+}
+
 // getPlayState gets the play state for use in a callback.
 // The *PlayState argument may only be used until the callback exits to prevent
 // race conditions.
@@ -224,7 +233,7 @@ func (p *MediaPlayer) setPlayState(ps *PlayState, state State, position time.Dur
 		position = p.getPosition(ps)
 	}
 
-	p.stateChange <- StateChange{state, position}
+	p.stateChange <- StateChange{state, position, p.getDuration()}
 }
 
 func (p *MediaPlayer) UpdatePlaylist(playlist []string, listId string) {
@@ -316,7 +325,7 @@ func (p *MediaPlayer) RequestPlaylist(playlistChan chan PlaylistState) {
 		case <-playlistChan:
 		default:
 		}
-		playlistChan <- PlaylistState{playlist, ps.Index, p.getPosition(ps), ps.State, ps.ListId}
+		playlistChan <- PlaylistState{playlist, ps.Index, p.getPosition(ps), p.getDuration(), ps.State, ps.ListId}
 	})
 }
 

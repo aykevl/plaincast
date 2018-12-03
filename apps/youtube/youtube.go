@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -147,8 +149,7 @@ func (yt *YouTube) init(arguments url.Values, stateChange chan mp.StateChange) {
 
 	yt.rid = NewRandomID()
 
-	c := config.Get()
-	yt.uuid, err = c.GetString("apps.youtube.uuid", func() (string, error) {
+	yt.uuid, err = config.Get().GetString("apps.youtube.uuid", func() (string, error) {
 		uuid, err := uuid.NewV4()
 		if err != nil {
 			return "", err
@@ -216,9 +217,9 @@ func (yt *YouTube) run(arguments url.Values) {
 
 			// Only print a message for less-verbose output.
 			switch message.command {
-			case "remoteConnected", "remoteDisconnected", "loungeStatus":
+			//case "remoteConnected", "remoteDisconnected":
 			default:
-				logger.Println("command:", message.index, message.command, message.args)
+				logger.Printf("command: %d %s %#v\n", message.index, message.command, message.args)
 			}
 
 			switch message.command {
@@ -227,8 +228,6 @@ func (yt *YouTube) run(arguments url.Values) {
 			case "remoteDisconnected":
 				logger.Printf("Remote disconnected: %s (%s)\n", message.args["name"], message.args["user"])
 			case "loungeStatus":
-				// pass
-				break
 			case "getVolume":
 				yt.mp.RequestVolume(volumeChan)
 			case "setVolume":
@@ -261,8 +260,12 @@ func (yt *YouTube) run(arguments url.Values) {
 
 				position, err := time.ParseDuration(message.args["currentTime"] + "s")
 				if err != nil {
-					logger.Warnln("currentTime could not be parsed:", err)
-					break
+					if message.args["currentTime"] == "" {
+						logger.Warnln("currentTime was empty")
+					} else {
+						logger.Warnln("currentTime could not be parsed:", err)
+					}
+					// position is 0s, nothing too problematic
 				}
 
 				if index < 0 || len(playlist) == 0 || index >= len(playlist) {
@@ -354,8 +357,11 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 			}
 
 			yt.outgoingMessages <- outgoingMessage{"onStateChange", map[string]string{
-				"currentTime": strconv.FormatFloat(change.Position.Seconds(), 'f', 3, 64),
-				"state":       strconv.Itoa(int(change.State)),
+				"currentTime":       strconv.FormatFloat(change.Position.Seconds(), 'f', 3, 64),
+				"duration":          strconv.FormatFloat(change.Duration.Seconds(), 'f', 3, 64),
+				"seekableStartTime": "0",
+				"seekableEndTime":   strconv.FormatFloat(change.Duration.Seconds(), 'f', 3, 64),
+				"state":             strconv.Itoa(int(change.State)),
 			}}
 
 		case volume := <-volumeChan:
@@ -370,6 +376,7 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 				message.args["videoIds"] = strings.Join(ps.Playlist, ",")
 				message.args["videoId"] = ps.Playlist[ps.Index]
 				message.args["currentTime"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
+				message.args["duration"] = strconv.FormatFloat(ps.Duration.Seconds(), 'f', 3, 64)
 				message.args["state"] = strconv.Itoa(int(ps.State))
 				message.args["currentIndex"] = strconv.Itoa(ps.Index)
 				//message.args["listId"] = ""
@@ -378,11 +385,16 @@ func (yt *YouTube) playerEvents(stateChange chan mp.StateChange, volumeChan chan
 		case ps := <-nowPlayingChan:
 			message := outgoingMessage{"nowPlaying", map[string]string{}}
 			if len(ps.Playlist) > 0 {
-				message.args["videoId"] = ps.Playlist[ps.Index]
-				message.args["currentTime"] = strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64)
-				message.args["state"] = strconv.Itoa(int(ps.State))
-				message.args["currentIndex"] = strconv.Itoa(ps.Index)
-				message.args["listId"] = ps.ListId
+				message.args = map[string]string{
+					"videoId":           ps.Playlist[ps.Index],
+					"currentTime":       strconv.FormatFloat(ps.Position.Seconds(), 'f', 3, 64),
+					"duration":          strconv.FormatFloat(ps.Duration.Seconds(), 'f', 3, 64),
+					"seekableStartTime": "0",
+					"seekableEndTime":   strconv.FormatFloat(ps.Duration.Seconds(), 'f', 3, 64),
+					"state":             strconv.Itoa(int(ps.State)),
+					"currentIndex":      strconv.Itoa(ps.Index),
+					"listId":            ps.ListId,
+				}
 			}
 			yt.outgoingMessages <- message
 		}
@@ -492,7 +504,7 @@ func (yt *YouTube) openChannel(initial bool) *http.Response {
 				time.Sleep(30 * time.Second)
 				continue
 			}
-			logger.Errln(err)
+			logger.Errln("Unknown error:", err)
 			yt.Quit()
 			break
 		}
@@ -500,6 +512,29 @@ func (yt *YouTube) openChannel(initial bool) *http.Response {
 		if resp.Status == "400 Unknown SID" {
 			logger.Println("error:", resp.Status, ". Reconnecting the message channel...")
 			// Restart the Channel API connection
+			doInitial = true
+			continue
+
+		} else if resp.Status == "400 Bad Request" {
+			// Most likely this is also an "Unknown SID" error.
+			buf, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				logger.Errln("could not read error message after 400 Bad Request:", err)
+				yt.Quit()
+				break
+			}
+
+			if strings.Index(string(buf), "<TITLE>Unknown SID</TITLE>") < 0 {
+				// Some other error
+				logger.Errln("response body:")
+				os.Stdout.Write(buf)
+				os.Stdout.Sync()
+				yt.Quit()
+				break
+			}
+
+			// Let's try again, similar to "400 Unknown SID"
+			logger.Println("error: 400 Bad Request (Unknown SID). Reconnecting the message channel...")
 			doInitial = true
 			continue
 
@@ -729,7 +764,7 @@ func (yt *YouTube) sendMessages() {
 			// It looks like 10ms is a good default. HTTP latency appears to be
 			// relatively independent of the machine performance, so I guess it is bound
 			// by the speed of light...
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(1 * time.Millisecond)
 			deadlineEnd <- struct{}{}
 		}
 	}()

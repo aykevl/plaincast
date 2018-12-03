@@ -18,12 +18,14 @@ const (
 )
 
 func serveSSDP(httpPort int) {
-	// only IPv4 for now
 	maddr, err := net.ResolveUDPAddr("udp", SSDP_ADDR)
 	if err != nil {
 		panic(err)
 	}
-	conn, err := net.ListenMulticastUDP("udp", nil, maddr)
+	conn, err := net.ListenMulticastUDP("udp4", nil, maddr)
+	if err != nil {
+		panic(err)
+	}
 
 	// SSDP packets may at most be one UDP packet
 	buf := make([]byte, UDP_PACKET_SIZE)

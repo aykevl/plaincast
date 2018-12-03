@@ -10,6 +10,7 @@ type Backend interface {
 	play(string, time.Duration, int)
 	pause()
 	resume()
+	getDuration() (time.Duration, error)
 	getPosition() (time.Duration, error)
 	setPosition(time.Duration)
 	setVolume(int)
