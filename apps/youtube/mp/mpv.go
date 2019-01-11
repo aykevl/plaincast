@@ -60,13 +60,13 @@ func (mpv *MPV) initialize() (chan State, int) {
 		panic(err)
 	}
 
-	mpv.setOptionFlag("no-resume-playback", true)
+	mpv.setOptionFlag("resume-playback", false)
 	//mpv.setOptionString("softvol", "yes")
 	//mpv.setOptionString("ao", "pulse")
 	mpv.setOptionInt("volume", initialVolume)
 
 	// Disable video in three ways.
-	mpv.setOptionFlag("no-video", true)
+	mpv.setOptionFlag("video", false)
 	mpv.setOptionString("vo", "null")
 	mpv.setOptionString("vid", "no")
 
@@ -81,7 +81,7 @@ func (mpv *MPV) initialize() (chan State, int) {
 	// true, Ctrl+C doesn't work correctly anymore and program output is
 	// disabled.
 	mpv.setOptionFlag("terminal", *logLibMPV)
-	mpv.setOptionFlag("no-input-terminal", true)
+	mpv.setOptionFlag("input-terminal", false)
 	mpv.setOptionFlag("quiet", true)
 
 	mpv.checkError(C.mpv_initialize(mpv.handle))
