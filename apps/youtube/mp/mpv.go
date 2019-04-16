@@ -39,7 +39,7 @@ type MPV struct {
 
 var mpvLogger = log.New("mpv", "Log MPV wrapper output")
 var logLibMPV = flag.Bool("log-libmpv", false, "Log output of libmpv")
-var flagPCM = flag.String("ao-pcm", "", "Write sound to a file, 48kHz stereo format S16")
+var flagPCM = flag.String("ao-pcm", "", "Write audio to a file, 48kHz stereo format S16")
 var httpPort string
 
 // New creates a new MPV instance and initializes the libmpv player
