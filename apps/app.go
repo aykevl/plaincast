@@ -5,4 +5,5 @@ type App interface {
 	Running() bool
 	Quit()
 	FriendlyName() string // return a human-readable name
+	Data(string) string // return data from app
 }
