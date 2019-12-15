@@ -95,7 +95,7 @@ func serveSSDPResponse(msg *mail.Message, conn *net.UDPConn, raddr *net.UDPAddr,
 		"ST: urn:dial-multiscreen-org:service:dial:1\r\n"+
                 "USN: uuid:%s::urn:dial-multiscreen-org:service:dial:1\r\n"+
 		"CONFIGID.UPNP.ORG: %d\r\n"+
-		"\r\n", time.Now().Format(time.RFC1123Z), getUrlIP(ipconn.LocalAddr()), httpPort, NAME, VERSION, deviceUUID, CONFIGID)
+		"\r\n", time.Now().Format(time.RFC1123), getUrlIP(ipconn.LocalAddr()), httpPort, NAME, VERSION, deviceUUID, CONFIGID)
 
 	_, err = conn.WriteTo([]byte(response), raddr)
 
