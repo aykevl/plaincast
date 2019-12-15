@@ -56,14 +56,14 @@ const DEVICE_DESCRIPTION = `<?xml version="1.0"?>
 // DIAL app template
 const APP_RESPONSE = `<?xml version="1.0" encoding="UTF-8"?>
 <service xmlns="urn:dial-multiscreen-org:schemas:dial" dialVer="1.7">
-	<name>{{.name}}</name> 
-	<options allowStop="false"/> 
-	<state>{{.state}}</state> 
+<name>{{.name}}</name>
+<options allowStop="false"/>
+<state>{{.state}}</state>
 {{if .runningUrl}}
-	<link rel="run" href="{{.runningUrl}}"/>
-	<additionalData>
-		<screenId>{{.screenid}}</screenId>
-	</additionalData>
+<link rel="run" href="{{.runningUrl}}"/>
+<additionalData>
+<screenId>{{.screenid}}</screenId>
+</additionalData>
 {{end}}
 </service>
 `
@@ -203,7 +203,8 @@ func (us *UPnPServer) getApplicationURL(req *http.Request) string {
 func (us *UPnPServer) serveDescription(w http.ResponseWriter, req *http.Request) {
 	logger.Println(req.Method, req.URL.Path)
 
-	w.Header().Set("Application-URL", us.getApplicationURL(req))
+	
+	w.Header()["Application-URL"] = []string{us.getApplicationURL(req)}
 
 	deviceDescription := map[string]interface{}{
 		"ConfigId":     CONFIGID,
