@@ -14,30 +14,17 @@ import (
 const pythonGrabber = `
 try:
     import sys
-    from youtube_dl import YoutubeDL
-    from youtube_dl.utils import DownloadError
-
-    if len(sys.argv) != 3:
-        sys.stderr.write('arguments: <format string> <cache dir>')
-        os.exit(1)
-
-    yt = YoutubeDL({
-        'geturl': True,
-        'format': sys.argv[1],
-        'cachedir': sys.argv[2] or None,
-        'quiet': True,
-        'simulate': True})
+    from pytube import YouTube
 
     while True:
         stream = ''
         try:
             url = sys.stdin.readline().strip()
-            stream = yt.extract_info(url, ie_key='Youtube')['url']
+            stream = YouTube(str(url)).streams.first().url
         except (KeyboardInterrupt, EOFError, IOError):
             break
-        except DownloadError as why:
-            # error message has already been printed
-            sys.stderr.write('Could not extract video, try updating youtube-dl.\n')
+        except:
+            sys.stderr.write('Could not extract video\n')
         finally:
             try:
                 sys.stdout.write(stream + '\n')
@@ -74,17 +61,17 @@ func NewVideoGrabber() *VideoGrabber {
 	vg := VideoGrabber{}
 	vg.streams = make(map[string]*VideoURL)
 
-	cacheDir := *cacheDir
-	if cacheDir != "" {
-		cacheDir = cacheDir + "/" + "youtube-dl"
-	}
+	//cacheDir := *cacheDir
+	//if cacheDir != "" {
+	//	cacheDir = cacheDir + "/" + "youtube-dl"
+	//}
 
 	// Start the process in a separate goroutine.
 	vg.cmdMutex.Lock()
 	go func() {
 		defer vg.cmdMutex.Unlock()
 
-		vg.cmd = exec.Command("python", "-c", pythonGrabber, grabberFormats, cacheDir)
+		vg.cmd = exec.Command("python3", "-c", pythonGrabber)//, grabberFormats, cacheDir)
 		stdout, err := vg.cmd.StdoutPipe()
 		if err != nil {
 			logger.Fatal(err)
