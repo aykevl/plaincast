@@ -34,7 +34,7 @@ directory. In any case, set the environment variable `$GOROOT` to this path:
 
 Then get the required packages and compile:
 
-    $ go get -u github.com/aykevl/plaincast
+    $ go get -u github.com/CarlosDerSeher/plaincast
 
 To run the server, run the executable `bin/plaincast` relative to your Go
 workspace. Any Android phone with YouTube app (or possibly iPhone, but I haven't
