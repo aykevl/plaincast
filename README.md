@@ -33,7 +33,7 @@ directory. In any case, set the environment variable `$GOROOT` to this path:
 
 Then get the required packages and compile:
 
-    $ go get -u github.com/CarlosDerSeher/plaincast
+    $ go get -u github.com/aykevl/plaincast
 	
 To run the server, you can run the executable `bin/plaincast` relative to your Go
 workspace.
