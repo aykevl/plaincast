@@ -26,8 +26,8 @@ var configLock sync.Mutex
 
 const CONFIG_FILENAME = ".config/plaincast.json"
 
-var disableConfig = flag.Bool("no-config", false, "disable reading from and writing to config file")
-var configPath = flag.String("config", "", "config file location (default "+CONFIG_FILENAME+")")
+var disableConfig = flag.Bool("no-config", false, "Disable reading from and writing to config file")
+var configPath = flag.String("config", "", "Config file location (default "+CONFIG_FILENAME+")")
 
 // Get returns a global Config instance.
 // It may be called multiple times: the same object will be returned each time.

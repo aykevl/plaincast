@@ -20,18 +20,20 @@ import (
 // This implements a UPnP/DIAL server.
 // DIAL is deprecated, but it's still being used by the YouTube app on Android.
 
-var flagHTTPPort = flag.Int("http-port", 8008, "default http port (0=available)")
+var flagHTTPPort = flag.Int("http-port", 8008, "Default http port (0=available)")
 var flagInitialApp = flag.String("app", "", "App to run on startup")
+var flagFriendlyName = flag.String("friendly-name", "", "Custom friendly name")
+
 
 // UPnP device description template
 const DEVICE_DESCRIPTION = `<?xml version="1.0"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0" configId="{{.ConfigId}}">
 	<specVersion>
 		<major>1</major>
-		<minor>1</minor>
+		<minor>0</minor>
 	</specVersion>
 	<device>
-		<deviceType>urn:schemas-upnp-org:device:dial:1</deviceType>
+		<deviceType>urn:dial-multiscreen-org:device:dialreceiver:1</deviceType>
 		<friendlyName>{{.FriendlyName}}</friendlyName>
 		<manufacturer>-</manufacturer>
 		<modelDescription>Play the audio of YouTube videos</modelDescription>
@@ -40,8 +42,8 @@ const DEVICE_DESCRIPTION = `<?xml version="1.0"?>
 		<UDN>uuid:{{.DeviceUUID}}</UDN>
 		<serviceList>
 			<service>
-				<serviceType>urn:schemas-upnp-org:service:dail:1</serviceType>
-				<serviceId>urn:upnp-org:serviceId:dail</serviceId>
+				<serviceType>urn:dial-multiscreen-org:service:dial:1</serviceType>
+				<serviceId>urn:dial-multiscreen-org:serviceId:dial</serviceId>
 				<SCPDURL>/upnp/notfound</SCPDURL>
 				<controlURL>/upnp/notfound</controlURL>
 				<eventSubURL></eventSubURL>
@@ -54,11 +56,14 @@ const DEVICE_DESCRIPTION = `<?xml version="1.0"?>
 // DIAL app template
 const APP_RESPONSE = `<?xml version="1.0" encoding="UTF-8"?>
 <service xmlns="urn:dial-multiscreen-org:schemas:dial" dialVer="1.7">
-	<name>{{.name}}</name> 
-	<options allowStop="false"/> 
-	<state>{{.state}}</state> 
+<name>{{.name}}</name>
+<options allowStop="false"/>
+<state>{{.state}}</state>
 {{if .runningUrl}}
-	<link rel="run" href="{{.runningUrl}}"/>
+<link rel="run" href="{{.runningUrl}}"/>
+<additionalData>
+<screenId>{{.screenid}}</screenId>
+</additionalData>
 {{end}}
 </service>
 `
@@ -100,7 +105,12 @@ func NewUPnPServer() *UPnPServer {
 	if err != nil {
 		panic(err)
 	}
-	us.friendlyName = FRIENDLY_NAME + " " + hostname
+
+        if *flagFriendlyName != "" {
+		us.friendlyName = *flagFriendlyName
+        }else{
+		us.friendlyName = FRIENDLY_NAME + " " + hostname
+	}
 
 	// initialize all known apps
 	us.apps = make(map[string]apps.App)
@@ -193,7 +203,8 @@ func (us *UPnPServer) getApplicationURL(req *http.Request) string {
 func (us *UPnPServer) serveDescription(w http.ResponseWriter, req *http.Request) {
 	logger.Println(req.Method, req.URL.Path)
 
-	w.Header().Set("Application-URL", us.getApplicationURL(req))
+	
+	w.Header()["Application-URL"] = []string{us.getApplicationURL(req)}
 
 	deviceDescription := map[string]interface{}{
 		"ConfigId":     CONFIGID,
@@ -291,6 +302,7 @@ func (us *UPnPServer) serveApp(w http.ResponseWriter, req *http.Request) {
 		"name":       appName,
 		"state":      status,
 		"runningUrl": runningUrl,
+		"screenid":   app.Data("screenid"),
 	}
 
 	w.Header().Set("Content-Type", "text/xml; charset=utf-8")

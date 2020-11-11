@@ -27,6 +27,8 @@ func serveSSDP(httpPort int) {
 		panic(err)
 	}
 
+	logger.Println("Listening to SSDP")
+
 	// SSDP packets may at most be one UDP packet
 	buf := make([]byte, UDP_PACKET_SIZE)
 
@@ -42,6 +44,7 @@ func serveSSDP(httpPort int) {
 			continue
 		}
 
+
 		msg, err := mail.ReadMessage(bytes.NewReader(packet[len(MSEARCH_HEADER):]))
 		if err != nil {
 			// ignore malformed packet
@@ -55,27 +58,31 @@ func serveSSDP(httpPort int) {
 			// that needs to be responded to.
 			continue
 		}
-
-		go serveSSDPResponse(msg, raddr, httpPort)
+		
+		logger.Println("M-SEARCH from %s", raddr)
+		
+		go serveSSDPResponse(msg, conn, raddr, httpPort)
 	}
 
 	defer conn.Close()
 }
 
-func serveSSDPResponse(msg *mail.Message, raddr *net.UDPAddr, httpPort int) {
+func serveSSDPResponse(msg *mail.Message, conn *net.UDPConn, raddr *net.UDPAddr, httpPort int) {
 	mx, err := strconv.Atoi(msg.Header.Get("MX"))
+
 	if err != nil {
 		logger.Warnln("could  not parse MX header:", err)
 		return
 	}
 
 	time.Sleep(time.Duration(rand.Int31n(1000000)) * time.Duration(mx) * time.Microsecond)
-
-	conn, err := net.DialUDP("udp", nil, raddr)
+	
+	// Only for getting local ip
+	ipconn, err := net.DialUDP("udp", nil, raddr)
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
+	defer ipconn.Close()
 
 	// TODO implement OS header, BOOTID.UPNP.ORG
 	// and make this a real template
@@ -86,10 +93,15 @@ func serveSSDPResponse(msg *mail.Message, raddr *net.UDPAddr, httpPort int) {
 		"LOCATION: http://%s:%d/upnp/description.xml\r\n"+
 		"SERVER: Linux/2.6.16+ UPnP/1.1 %s/%s\r\n"+
 		"ST: urn:dial-multiscreen-org:service:dial:1\r\n"+
+                "USN: uuid:%s::urn:dial-multiscreen-org:service:dial:1\r\n"+
 		"CONFIGID.UPNP.ORG: %d\r\n"+
-		"\r\n", time.Now().Format(time.RFC1123Z), getUrlIP(conn.LocalAddr()), httpPort, NAME, VERSION, CONFIGID)
+		"\r\n", time.Now().Format(time.RFC1123), getUrlIP(ipconn.LocalAddr()), httpPort, NAME, VERSION, deviceUUID, CONFIGID)
 
-	_, err = conn.Write([]byte(response))
+	_, err = conn.WriteTo([]byte(response), raddr)
+
+	ipconn.Close()
+	logger.Println("Sent SSDP response")
+
 	if err != nil {
 		panic(err)
 	}

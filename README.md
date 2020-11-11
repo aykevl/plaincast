@@ -4,8 +4,7 @@ This is a small [DIAL](http://www.dial-multiscreen.org) server that emulates
 Chromecast-like devices, and implements the YouTube app. It only renders the
 audio, not the video, so it is very lightweight and can run headless.
 
-It can be used as media server, for example on the [Raspberry
-Pi](http://www.raspberrypi.org/).
+It can be used as media server, for example on the [Raspberry Pi](http://www.raspberrypi.org/).
 
 ## Installation
 
@@ -35,14 +34,66 @@ directory. In any case, set the environment variable `$GOROOT` to this path:
 Then get the required packages and compile:
 
     $ go get -u github.com/CarlosDerSeher/plaincast
+	
+To run the server, you can run the executable `bin/plaincast` relative to your Go
+workspace.
 
-To run the server, run the executable `bin/plaincast` relative to your Go
-workspace. Any Android phone with YouTube app (or possibly iPhone, but I haven't
-tested) on the same network should recognize the server and it should be
-possible to play the audio of videos on it. The Chrome extension doesn't yet
-work.
+    $ bin/plaincast [OPTIONS]
 
-    $ bin/plaincast
+or install it as service
+
+	$ cd src/github.com/aykevl/plaincast
+	$ make install
+
+If you want to remove service `$ make remove`
+
+Any browser that supports chromecast extension and Android phone with YouTube app 
+(or possibly iPhone, but I haven't tested) on the same network should recognize
+the server and it should be possible to play the audio of videos on it. 
+
+
+### Manual service installation
+
+Copy compiled binary file `plaincast` to `/usr/local/bin/` and create new user *plaincast* in group *audio* 
+
+	$ useradd -s /bin/false -r -M plaincast -g audio
+	
+Create directory 
+
+	$ mkdir -p /var/local/plaincast
+	$ chown plaincast:audio /var/local/plaincast
+
+Copy systemd unit file `plaincast.service` to `/etc/systemd/system/` and enable the service 
+
+`$ systemctl enable plaincast`
+
+
+## Options
+	-h, -help	    	Prints help text and exit
+	-ao-pcm		    	Write audio to a file, 48kHz stereo format S16
+	-app		    	Name of the app to run on startup, no need to use 
+        	            	as currently is supported only YouTube	
+	-cachedir	    	Cache directory location for youtube-dl
+	-config		    	Location of the configuration file, path to to config
+        	            	(default location ~/.config/plaincast.json)
+	-friendly-name  	Custom friendly name (default "Plaincast HOSTNAME")	
+	-http-port	    	Custom http port (default 8008)
+	-log-libmpv	    	Log output of libmpv
+	-log-mpv	    	Log MPV wrapper output
+	-log-player	    	Log media player messages
+	-log-server	    	Log HTTP and SSDP server
+	-log-youtube    	Log YouTube app
+	-loglevel	    	Baseline loglevel (info, warn, err) (default "warn")
+	-no-config	    	Disable reading from and writing to config file
+	-no-sspd	    	Disable SSDP server
+
+
+### Snapcast support
+
+You can easily write audio output to snapcast pipe using option
+
+`-ao-pcm PATH-TO-SNAPFIFO`
+
 
 ## Notes on pytube
 
@@ -55,12 +106,6 @@ I tried using python 2 but had no success with it. To install most recent pytube
 
 It is advisable to run this regularly as it has to keep up with YouTube updates.
 Certainly first try updating pytube when plaincast stops working.
-
-## Known issues
-
- *  So far, only DIAL is implemented, so the Chrome extension for Chromecast
-    doesn't work yet (I suspect it uses mDNS, which is the successor of DIAL on
-    Chromecast).
 
 ## Thanks
 

@@ -7,10 +7,10 @@ fmt:
 	go fmt . ./apps ./apps/youtube ./apps/youtube/mp ./config ./log ./server
 
 run: build
-	../../bin/plaincast
+	${GOPATH}bin/plaincast
 
 install:
-	cp ../../bin/plaincast /usr/local/bin/plaincast.new
+	cp ${GOPATH}bin/plaincast /usr/local/bin/plaincast.new
 	mv /usr/local/bin/plaincast.new /usr/local/bin/plaincast
 	if ! egrep -q "^plaincast:" /etc/passwd; then useradd -s /bin/false -r -M plaincast -g audio; fi
 	mkdir -p /var/local/plaincast
