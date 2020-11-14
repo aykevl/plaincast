@@ -14,18 +14,19 @@ import (
 const pythonGrabber = `
 try:
     import sys
-    from pytube import YouTube
+    import pytube
 
     while True:
         stream = ''
         try:
             url = sys.stdin.readline().strip()
-            stream = YouTube(str(url)).streams.first().url
+            stream = pytube.YouTube(str(url)).streams.first().url
         except (KeyboardInterrupt, EOFError, IOError):
             break
-        except:
-            sys.stderr.write('Could not extract video\n')
-        finally:
+        except pytube.exceptions.ExtractError:
+            str = 'Could not extract video: ' + str(url) + '\n'
+            sys.stderr.write(str)
+        finally:            
             try:
                 sys.stdout.write(stream + '\n')
                 sys.stdout.flush()

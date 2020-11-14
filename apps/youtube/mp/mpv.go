@@ -77,12 +77,15 @@ func (mpv *MPV) initialize() (chan State, int) {
 
 
         if *flagPCM != "" {
-	logger.Println("Writing sound to file: %s", *flagPCM)
-	mpv.setOptionString("audio-channels", "stereo")
-	mpv.setOptionString("audio-samplerate", "48000")
-	mpv.setOptionString("audio-format", "s16")
-	mpv.setOptionString("ao", "pcm")
-	mpv.setOptionString("ao-pcm-file", *flagPCM)
+		logger.Println("Writing sound to file:", *flagPCM)
+
+		mpv.setOptionString("audio-channels", "stereo")
+		mpv.setOptionString("audio-samplerate", "48000")
+		mpv.setOptionString("audio-format", "s16")
+		mpv.setOptionString("ao", "pcm")
+		mpv.setOptionString("ao-pcm-waveheader", "no")
+		mpv.setOptionString("ao-pcm-append", "yes")
+		mpv.setOptionString("ao-pcm-file", *flagPCM)
         }
 
 	// Cache settings assume 128kbps audio stream (16kByte/s).

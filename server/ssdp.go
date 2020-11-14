@@ -59,7 +59,7 @@ func serveSSDP(httpPort int) {
 			continue
 		}
 		
-		logger.Println("M-SEARCH from %s", raddr)
+		logger.Println("M-SEARCH from", raddr)
 		
 		go serveSSDPResponse(msg, conn, raddr, httpPort)
 	}
