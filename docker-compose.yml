@@ -9,5 +9,3 @@ services:
     network_mode: host
     devices:
       - /dev/snd
-
-

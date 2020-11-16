@@ -77,8 +77,20 @@ Or for Python 3:
     $ sudo pip3 install --upgrade youtube-dl
 
 It is advisable to run this regularly as it has to keep up with YouTube updates.
-Certainly first try updating youtube-dl when plaincast stops working.
+Certainly first try updating `youtube-dl` when plaincast stops working.
 
+## Docker
+
+Both `Dockerfile` and Docker Compose manifest are provided. The former builds
+a Docker image with the program binary built from local code and the required
+build dependencies. The Docker image also includes a recent `youtube-dl`
+version. This will avoid the need of installing a recent version for the local
+OS and version on the host, thus avoiding the risks of installing any software.
+The [Docker Compose manifest](./docker-compose.yml) contains the configuration
+settings needed to launch a Docker container.
+To run the Docker image, just run:
+
+    $ docker-compose up --build --force-recreate
 
 ## Known issues
 
