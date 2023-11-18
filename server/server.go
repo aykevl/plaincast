@@ -15,8 +15,8 @@ const (
 )
 
 var deviceUUID *uuid.UUID
-var disableSSDP = flag.Bool("no-ssdp", false, "disable SSDP broadcast")
-var logger = log.New("server", "log HTTP and SSDP server")
+var disableSSDP = flag.Bool("no-ssdp", false, "Disable SSDP server")
+var logger = log.New("server", "Log HTTP and SSDP server")
 
 func Serve() {
 	var err error
@@ -30,7 +30,7 @@ func Serve() {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	logger.Println("serving HTTP on port", httpPort)
+	logger.Println("Serving HTTP on port", httpPort)
 
 	if !*disableSSDP {
 		serveSSDP(httpPort)
