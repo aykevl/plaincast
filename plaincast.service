@@ -6,6 +6,8 @@ After=network.target sound.target
 ExecStart=/usr/local/bin/plaincast -log-mpv -log-youtube -config /var/local/plaincast/plaincast.conf -cachedir /var/local/plaincast/cache
 User=plaincast
 Group=audio
+Restart=on-failure
+RestartSec=2s
 
 [Install]
 WantedBy=multi-user.target

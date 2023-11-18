@@ -37,11 +37,16 @@ type MPV struct {
 	mainloopExit chan struct{}
 }
 
-var mpvLogger = log.New("mpv", "log MPV wrapper output")
-var logLibMPV = flag.Bool("log-libmpv", false, "log output of libmpv")
+var mpvLogger = log.New("mpv", "Log MPV wrapper output")
+var logLibMPV = flag.Bool("log-libmpv", false, "Log output of libmpv")
+var flagPCM = flag.String("ao-pcm", "", "Write audio to a file, 48kHz stereo format S16")
+var httpPort string
 
 // New creates a new MPV instance and initializes the libmpv player
 func (mpv *MPV) initialize() (chan State, int) {
+
+ 	httpPort = flag.Lookup("http-port").Value.String()
+
 	if mpv.handle != nil || mpv.running {
 		panic("already initialized")
 	}
@@ -69,6 +74,16 @@ func (mpv *MPV) initialize() (chan State, int) {
 	mpv.setOptionFlag("video", false)
 	mpv.setOptionString("vo", "null")
 	mpv.setOptionString("vid", "no")
+
+
+        if *flagPCM != "" {
+	logger.Println("Writing sound to file: %s", *flagPCM)
+	mpv.setOptionString("audio-channels", "stereo")
+	mpv.setOptionString("audio-samplerate", "48000")
+	mpv.setOptionString("audio-format", "s16")
+	mpv.setOptionString("ao", "pcm")
+	mpv.setOptionString("ao-pcm-file", *flagPCM)
+        }
 
 	// Cache settings assume 128kbps audio stream (16kByte/s).
 	// The default is a cache size of 25MB, these are somewhat more sensible
@@ -231,7 +246,7 @@ func (mpv *MPV) play(stream string, position time.Duration, volume int) {
 	if !strings.HasPrefix(stream, "https://") {
 		logger.Panic("Stream does not start with https://...")
 	}
-	mpv.sendCommand([]string{"loadfile", "http://localhost:8008/proxy/" + stream[len("https://"):], "replace", options})
+	mpv.sendCommand([]string{"loadfile", "http://localhost:" + httpPort + "/proxy/" + stream[len("https://"):], "replace", options})
 }
 
 func (mpv *MPV) pause() {

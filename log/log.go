@@ -26,7 +26,7 @@ const (
 
 var isTerminal = terminal.IsTerminal(int(os.Stdout.Fd()))
 
-var flagLoglevel = flag.String("loglevel", "warn", "baseline loglevel (info, warn, err)")
+var flagLoglevel = flag.String("loglevel", "warn", "Baseline loglevel (info, warn, err)")
 
 var loglevel = 0
 

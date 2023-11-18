@@ -21,7 +21,7 @@ import (
 	"github.com/nu7hatch/gouuid"
 )
 
-var logger = log.New("youtube", "log YouTube app")
+var logger = log.New("youtube", "Log YouTube app")
 
 // How often a new connection attempt should be done.
 // With a starting delay of 500ms that exponentially increases, this is about 5
@@ -106,6 +106,14 @@ func New(systemName string) *YouTube {
 
 func (yt *YouTube) FriendlyName() string {
 	return "YouTube"
+}
+
+func (yt *YouTube) Data(requestData string) string {
+        if requestData == "screenid" {
+		return yt.getScreenId()
+	}
+
+	return ""
 }
 
 // Start starts the YouTube app asynchronously.
