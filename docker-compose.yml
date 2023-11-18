@@ -1,0 +1,11 @@
+version: "2.4"
+services:
+  plaincast:
+    container_name: plaincast
+    restart: unless-stopped
+    build: .
+    environment:
+      - ALSA_CARD
+    network_mode: host
+    devices:
+      - /dev/snd
