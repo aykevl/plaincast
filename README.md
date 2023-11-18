@@ -1,5 +1,7 @@
 # Plaincast
 
+**This project is unmaintained**. Feel free to fork it and take over maintainership if you're interested in using it.
+
 This is a small [DIAL](http://www.dial-multiscreen.org) server that emulates
 Chromecast-like devices, and implements the YouTube app. It only renders the
 audio, not the video, so it is very lightweight and can run headless.
